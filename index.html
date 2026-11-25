@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle Consignado</title>
+<style>
+  :root {
+    --branco: #ffffff;
+    --cinza-50: #f4f6f9;
+    --cinza-100: #eef0f3;
+    --cinza-200: #e2e6ea;
+    --cinza-300: #cfd5dc;
+    --cinza-500: #7a8694;
+    --verde: #46da86;
+    --verde-claro: #e4f9ed;
+    --verde-forte: #1c9a55;
+    --azul: #111741;
+    --azul-2: #142037;
+    --azul-claro: #e9ebf4;
+    --alerta: #9a5b00;
+    --alerta-bg: #fdf1dc;
+    --perigo: #b42318;
+    --perigo-bg: #fde8e6;
+    --raio: 12px;
+    --sombra: 0 1px 2px rgba(17,23,65,.06), 0 4px 14px rgba(17,23,65,.06);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--cinza-50); color: var(--azul);
+    font: 14px/1.45 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .mono { font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; letter-spacing: .04em; }
+  .muted { color: var(--cinza-500); }
+  svg { display: block; }
+
+  /* ---------- topo ---------- */
+  .topo { border-bottom: 3px solid var(--verde); background: var(--branco); position: sticky; top: 0; z-index: 20; }
+  .topo-in { max-width: 1280px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .marca { display: flex; align-items: center; gap: 10px; }
+  .marca-ico { width: 36px; height: 36px; border-radius: 10px; background: var(--azul); display: grid; place-items: center; }
+  .marca h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  .topo-dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .chip-loja { background: var(--verde-claro); border: 1px solid var(--verde); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+  .chip-loja small { font-weight: 500; color: var(--cinza-500); margin-left: 6px; }
+  .tabs { max-width: 1280px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; }
+  .tab { border: 0; background: none; padding: 10px 14px; font-weight: 600; color: var(--cinza-500); border-bottom: 3px solid transparent; margin-bottom: -3px; }
+  .tab.on { color: var(--azul); border-bottom-color: var(--azul); }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 18px 20px 80px; }
+
+  /* ---------- barra de filtros ---------- */
+  .barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .busca { position: relative; flex: 1 1 240px; max-width: 360px; }
+  .busca svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); }
+  .busca input[type=search] { padding-left: 36px; }
+  input[type=text], input[type=email], input[type=password], input[type=date], select, input[type=search] {
+    width: 100%; height: 38px; padding: 0 11px; border: 1.5px solid var(--cinza-300); border-radius: 9px;
+    background: var(--branco); color: var(--azul); transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px rgba(17,23,65,.12); }
+  input[readonly] { background: var(--cinza-50); color: var(--cinza-500); }
+  input.erro, select.erro { border-color: var(--perigo); background: var(--perigo-bg); }
+  .sel-loja { flex: 0 1 260px; }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .fchip { border: 1.5px solid var(--cinza-200); background: var(--branco); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--azul); }
+  .fchip b { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--cinza-100); font-size: 11.5px; }
+  .fchip:hover { border-color: var(--azul); }
+  .fchip.on { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .fchip.on b { background: rgba(255,255,255,.2); color: #fff; }
+
+  /* ---------- lista (cada veículo = 1 cartão) ---------- */
+  .cab, .row {
+    display: grid; align-items: center; column-gap: 10px;
+    grid-template-columns: 104px minmax(170px,1.7fr) 124px 46px 88px 128px 96px 58px 112px 112px 34px;
+  }
+  .cab { padding: 0 16px 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cinza-500); }
+  .card { background: var(--branco); border: 1.5px solid #c5cad8; border-radius: var(--raio); box-shadow: 0 2px 6px rgba(17,23,65,.10); margin-bottom: 12px; overflow: hidden; }
+  .card:hover { border-color: var(--azul); box-shadow: 0 3px 10px rgba(17,23,65,.16); }
+  .card.entregue { background: var(--cinza-50); }
+  .row { padding: 12px 16px; }
+  .c { min-width: 0; }
+  .c small { display: block; color: var(--cinza-500); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .plate { display: inline-block; padding: 3px 9px; border: 1.5px solid var(--azul); border-radius: 6px; font-weight: 800; letter-spacing: .08em; font-family: ui-monospace, Consolas, monospace; background: #fff; }
+  .c input[type=date] { height: 34px; font-size: 13px; padding: 0 8px; }
+  .dtw { position: relative; }
+  .dtw input.dtp { cursor: pointer; }
+  .dtw input.dtp.vazio { color: transparent; }
+  .dtw .dtph { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12.5px; color: var(--cinza-500); pointer-events: none; }
+  .c input.vv { height: 34px; font-size: 13px; font-weight: 700; padding: 0 6px; }
+  .c input.vv.zero { color: #d32f2f; }
+  .c:has(> .cont) { position: relative; }
+  .card:has(.cont) > .row { padding-bottom: 28px; }
+  .cont { position: absolute; left: 0; right: 0; top: 100%; margin-top: 3px; text-align: center; font-size: 11.5px; font-weight: 700; line-height: 1.2; color: var(--cinza-500); white-space: nowrap; }
+  .cont.atraso { color: #d32f2f; }
+  .laudo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--verde-claro); border: 1px solid var(--verde); }
+  .laudo:hover { background: var(--verde); }
+  .dias { display: inline-flex; flex-direction: column; align-items: center; min-width: 48px; padding: 3px 8px; border-radius: 9px; font-weight: 800; font-size: 17px; line-height: 1.1; }
+  .dias small { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: inherit; opacity: .8; }
+  .dias.ok { background: var(--verde-claro); color: var(--verde-forte); }
+  .dias.warn { background: var(--alerta-bg); color: var(--alerta); }
+  .dias.danger { background: var(--perigo-bg); color: var(--perigo); }
+  .dias.done, .dias.muted { background: var(--cinza-100); color: var(--cinza-500); }
+
+  .stbtn { width: 100%; height: 38px; border-radius: 10px; border: 1.5px solid var(--cinza-300); background: var(--cinza-100); color: #3c4a59; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform .1s, background .15s; }
+  .stbtn:active:not(:disabled) { transform: scale(.98); }
+  .stbtn.idle:hover { background: var(--cinza-200); }
+  .stbtn.wait { background: var(--azul-claro); border-color: var(--azul); color: var(--azul); }
+  .stbtn.ok { background: var(--verde); border-color: var(--verde); color: var(--azul-2); }
+  .stbtn.go { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .stbtn.go:hover { background: var(--azul-2); }
+  .stbtn:disabled { opacity: .5; cursor: not-allowed; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--azul); animation: pulsa 1.4s infinite; }
+  @keyframes pulsa { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+
+  .row2 { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; padding: 12px 16px 14px; background: var(--cinza-50); border-top: 1px solid var(--cinza-200); }
+  .card.entregue .row2 { background: var(--cinza-100); }
+  .r2 label, .lbl { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cinza-500); margin-bottom: 5px; }
+  .rastreio { display: flex; gap: 6px; align-items: center; }
+  .rastreio input { width: 168px; text-transform: uppercase; }
+  .ibtn { width: 38px; height: 38px; border-radius: 9px; border: 1.5px solid var(--cinza-300); background: #fff; display: grid; place-items: center; flex: none; }
+  .ibtn:hover { border-color: var(--azul); background: var(--azul-claro); }
+  .lnk { font-size: 12.5px; font-weight: 600; color: var(--azul); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+  .dl { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 9px; border: 1.5px solid var(--verde); background: var(--verde-claro); font-weight: 700; font-size: 12.5px; margin-right: 6px; }
+  .dl:hover { background: var(--verde); }
+
+
+  .vazio { text-align: center; padding: 60px 20px; color: var(--cinza-500); border: 2px dashed var(--cinza-200); border-radius: var(--raio); }
+  .vazio h3 { color: var(--azul); margin: 10px 0 4px; }
+  .mais { display: block; margin: 14px auto 0; padding: 10px 22px; border-radius: 10px; border: 1.5px solid var(--azul); background: #fff; font-weight: 700; }
+
+  /* ---------- botões gerais ---------- */
+  .btn { height: 40px; padding: 0 18px; border-radius: 10px; border: 1.5px solid var(--azul); background: #fff; color: var(--azul); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn:hover { background: var(--azul-claro); }
+  .btn.pri { background: var(--azul); color: #fff; }
+  .btn.pri:hover { background: var(--azul-2); }
+  .btn.finaliza { background: #111741; border-color: #111741; color: #fff; margin-left: auto; }
+  .btn.finaliza:hover { background: #142037; border-color: #142037; }
+  .r2-rast { flex: 1 1 420px; }
+  .r2-rast .rastreio { width: 100%; }
+  .ibtn.del { width: 32px; height: 32px; color: #8a96a3; border-color: transparent; background: transparent; }
+  .ibtn.del:hover { color: var(--perigo); border-color: var(--perigo); background: var(--perigo-bg); }
+  .c-del { justify-self: end; }
+  .btn.laranja { background: #f6a23a; border-color: #e8912a; color: var(--azul); }
+  .btn.laranja:hover { background: #f1932a; }
+  .btn.verde { background: var(--verde); border-color: var(--verde); color: var(--azul-2); }
+  .btn.verde:hover { background: #3cc878; }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn.sm { height: 32px; padding: 0 12px; font-size: 12.5px; }
+
+  /* ---------- painéis (importar / lojas) ---------- */
+  .dest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 760px) { .dest-grid { grid-template-columns: 1fr; } }
+  .dest-lista { margin: 12px 0; }
+  .dest-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--cinza-200); }
+  .dest-chk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .dest-chk, .dest-chk * { cursor: pointer; }
+  .dest-chk input { width: 18px; height: 18px; margin: 0; accent-color: var(--azul); flex: none; }
+  .dest-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #e3f6e6; color: #1b6b2f; flex: none; }
+  .dest-item.off .dest-mail { color: var(--cinza-500); text-decoration: line-through; font-weight: 500; }
+  .dest-item.off .dest-tag { background: var(--cinza-200); color: var(--cinza-500); }
+  .dest-aviso { margin-top: 10px; padding: 8px 12px; border-radius: 9px; background: #fff4e0; color: #8a5300; font-size: 13px; }
+  .dest-mail { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; color: var(--azul); }
+  .dest-novo { display: flex; gap: 8px; margin-top: 8px; }
+  .dest-novo input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1.5px solid var(--cinza-300); border-radius: 9px; font: inherit; }
+  .dest-mais { font-size: 22px; line-height: 1; color: #fff; background: var(--azul); border-color: var(--azul); }
+  .dest-mais:hover { background: #0c2f55; }
+  .dest-menos { font-size: 22px; line-height: 1; color: #b42318; }
+  .painel { border: 1px solid var(--cinza-200); border-radius: var(--raio); box-shadow: var(--sombra); padding: 22px; background: #fff; }
+  .painel h2 { margin: 0 0 4px; font-size: 18px; }
+  .drop { margin-top: 16px; border: 2px dashed var(--cinza-300); border-radius: var(--raio); padding: 38px 20px; text-align: center; background: var(--cinza-50); transition: .15s; }
+  .drop.over { border-color: var(--azul); background: var(--azul-claro); }
+  .drop p { margin: 8px 0 14px; color: var(--cinza-500); }
+  .resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 18px 0; }
+  .kpi { border: 1px solid var(--cinza-200); border-radius: 10px; padding: 12px 14px; background: var(--cinza-50); }
+  .kpi b { display: block; font-size: 24px; line-height: 1.1; }
+  .kpi span { font-size: 12px; color: var(--cinza-500); }
+  .kpi.verde { background: var(--verde-claro); border-color: var(--verde); }
+  table.tb { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .tb th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--cinza-500); padding: 8px 10px; border-bottom: 2px solid var(--cinza-200); }
+  .tb td { padding: 10px; border-bottom: 1px solid var(--cinza-100); vertical-align: middle; }
+  .tb tr:hover td { background: var(--cinza-50); }
+  .scroll-x { overflow-x: auto; }
+
+  /* ---------- modal ---------- */
+  .ov { position: fixed; inset: 0; background: rgba(10,47,82,.55); display: none; align-items: flex-start; justify-content: center; padding: 28px 14px; z-index: 100; overflow-y: auto; }
+  .ov.on { display: flex; }
+  .modal { background: #fff; width: 100%; max-width: 760px; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.28); border-top: 6px solid var(--verde); overflow: hidden; }
+  .modal.sm { max-width: 460px; }
+  .m-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 14px; background: var(--azul); color: #fff; }
+  .m-head h2 { margin: 0; font-size: 18px; }
+  .m-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--verde); }
+  .m-x { margin-left: auto; width: 32px; height: 32px; border-radius: 8px; border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 20px; line-height: 1; }
+  .m-x:hover { background: rgba(255,255,255,.25); }
+  .m-body { padding: 18px 22px 8px; }
+  .m-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 22px 18px; border-top: 1px solid var(--cinza-100); background: #fff; position: sticky; bottom: 0; }
+  .m-foot .assunto { font-size: 11.5px; color: var(--cinza-500); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-foot .btn.pri { margin-left: auto; }
+  .sec { border: 1.5px solid var(--verde); border-radius: 12px; background: #fbfffc; padding: 14px; margin-bottom: 14px; }
+  .sec > h3 { margin: 0 0 12px; font-size: 13px; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+  .loja-save { margin-left: auto; display: flex; align-items: center; gap: 12px; font-weight: 600; }
+  .chk-loja { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--cinza-500); }
+  .chk-loja { padding: 6px 4px; user-select: none; }
+  .chk-loja, .chk-loja * { cursor: pointer; }
+  .chk-loja input { width: 18px; height: 18px; margin: 0; accent-color: var(--azul); }
+  .chk-loja input:checked + span { color: var(--azul); }
+  .loja-save .btn[hidden] { display: none; }
+  .sec > h3 i { font-style: normal; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--azul); color: #fff; font-size: 11px; }
+  details.sec > summary { cursor: pointer; font-weight: 700; font-size: 13px; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary::after { content: 'Visualizar preenchimento ▾'; margin-left: auto; font-size: 12px; font-weight: 600; color: var(--cinza-500); }
+  details.sec[open] > summary::after { content: 'Fechar ▴'; }
+  details.sec .grid { margin-top: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .f { min-width: 0; }
+  .f.w2 { grid-column: span 2; }
+  .f label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+  .f label em { color: var(--perigo); font-style: normal; }
+  .f .hint { font-size: 11px; color: var(--cinza-500); margin-top: 4px; }
+  .file { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px dashed var(--cinza-300); border-radius: 9px; background: #fff; }
+  .file input { font-size: 12.5px; width: 100%; }
+  .file.erro { border-color: var(--perigo); background: var(--perigo-bg); }
+  .resumo-ro { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 9px 12px; margin-bottom: 12px; border-radius: 9px; background: var(--cinza-100); font-size: 13px; }
+  .resumo-ro b { font-weight: 700; }
+  .resumo-ro span { color: var(--cinza-500); }
+  .info { background: var(--verde-claro); border: 1px solid var(--verde); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 14px; }
+  .info.az { background: var(--azul-claro); border-color: var(--azul); }
+  .lista-kv { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0 0 14px; }
+  .lista-kv dt { color: var(--cinza-500); font-size: 12px; }
+  .lista-kv dd { margin: 0; font-weight: 600; word-break: break-word; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--azul); color: #fff; padding: 11px 18px; border-radius: 10px; box-shadow: 0 8px 26px rgba(0,0,0,.25); z-index: 200; transition: .25s; max-width: 92vw; font-weight: 600; pointer-events: none; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .toast.erro { background: var(--perigo); }
+  .carregando { text-align: center; padding: 80px 0; color: var(--cinza-500); }
+  .spin { width: 28px; height: 28px; border: 3px solid var(--cinza-200); border-top-color: var(--azul); border-radius: 50%; animation: gira .8s linear infinite; margin: 0 auto 12px; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+
+  /* ---------- telas menores: cada linha vira cartão com rótulos ---------- */
+  @media (max-width: 1180px) {
+    .cab { display: none; }
+    .row { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); row-gap: 12px; }
+    .row .c::before { content: attr(data-l); display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cinza-500); margin-bottom: 3px; }
+    .row .c-modelo { grid-column: span 2; }
+    .row .c-placa { order: -1; }
+  }
+  @media (max-width: 640px) {
+    main { padding: 14px 12px 80px; }
+    .topo-in { padding: 12px; }
+    .marca h1 { font-size: 17px; }
+    .m-body, .m-head, .m-foot { padding-left: 16px; padding-right: 16px; }
+    .f.w2 { grid-column: auto; }
+    .m-foot { flex-wrap: wrap; }
+    .m-foot .assunto { flex-basis: 100%; white-space: normal; }
+    .lista-kv { grid-template-columns: 1fr; }
+    .filtros { flex-wrap: nowrap; overflow-x: auto; margin-right: -12px; padding-bottom: 4px; }
+    .fchip { white-space: nowrap; flex: none; }
+    .row2 { gap: 14px; }
+    .r2 { width: 100%; }
+    .rastreio { flex-wrap: wrap; }
+    .rastreio input { flex: 1 1 150px; width: auto; }
+  }
+
+  .banner { background: var(--alerta-bg); border: 1px solid #e7c98f; color: var(--alerta); border-radius: 10px; padding: 9px 12px; margin-bottom: 12px; font-size: 13px; }
+  .stbtn.pago { background: var(--verde-forte); border-color: var(--verde-forte); color: #fff; }
+  .prog { height: 8px; border-radius: 99px; background: var(--cinza-200); margin-top: 10px; overflow: hidden; }
+  .prog.big { height: 16px; margin-top: 8px; }
+  .prog-box { margin-top: 18px; padding: 18px; border: 1.5px solid var(--verde); border-radius: 12px; background: #fbfffc; }
+  .prog-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .prog-pct { font-size: 28px; font-weight: 800; color: var(--azul); font-variant-numeric: tabular-nums; }
+  .prog.big i { background: linear-gradient(90deg, var(--azul), #46da86); transition: width .25s linear; }
+  .prog.big i.indet { width: 35%; animation: indet 1.1s ease-in-out infinite; transition: none; }
+  @keyframes indet { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  .prog i { display: block; height: 100%; background: var(--azul); transition: width .3s; }
+  .hint.ok-t { color: var(--verde-forte); font-weight: 600; font-size: 12px; margin-top: 4px; }
+  .r2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .r2 > label, .r2 > .lbl { flex: 0 0 100%; }
+  .r2 .dl { margin: 0; height: 36px; padding: 0 12px; }
+  .r2 .btn.sm { margin: 0; height: 36px; }
+  .r2 .btn.finaliza { margin-left: auto; }
+  .lemb .lemb-x { margin-left: 10px; border: 0; background: transparent; color: #9a5b00; font-size: 20px; line-height: 1; padding: 0 4px; cursor: pointer; font-weight: 700; vertical-align: middle; }
+  .lemb .lemb-x:hover { color: #c62828; }
+  .lemb .lemb-x.txt { font-size: 12px; text-decoration: underline; font-weight: 700; }
+  .r2 .lbl.lemb { flex: 0 0 auto; margin: 0; color: #9a5b00; background: #fff4e0; border: 1px solid #f0c987; border-radius: 6px; padding: 6px 10px; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .plate.cpy { cursor: copy; }
+  .plate.cpy:hover { background: var(--azul-claro); }
+  .c:has(> input.vv) { position: relative; }
+  .c > input.vv { padding-right: 24px; }
+  .cpv { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border: 0; background: transparent; padding: 3px; cursor: copy; opacity: .55; }
+  .cpv:hover { opacity: 1; }
+  .cpv svg { width: 100%; height: 100%; }
+  .stbtn.fin { background: #111741; border-color: #111741; color: #fff; font-size: 11.5px; line-height: 1.1; padding: 0 4px; }
+  .stbtn.fin:hover:not(:disabled) { background: #142037; }
+  .lbl.chegou { flex: 0 0 auto; margin: 0; display: inline-flex; align-items: center; gap: 7px; color: #8a5a00; background: #fff3cd; border: 1px solid #e6b800; border-radius: 6px; padding: 7px 11px; text-transform: none; letter-spacing: 0; font-size: 12.5px; animation: pulsaAviso 1.4s ease-in-out infinite; }
+  .lbl.chegou .dot { background: #e6a800; animation: pulsa 1.4s infinite; }
+  .lbl.chegou.ok { color: #0b6b2f; background: #e4f9ed; border-color: #46da86; animation: none; }
+  .lbl.chegou.ok .dot { background: #1e9e4d; animation: none; }
+  @keyframes pulsaAviso { 0%,100% { box-shadow: 0 0 0 0 rgba(230,168,0,.55); } 50% { box-shadow: 0 0 0 6px rgba(230,168,0,0); } }
+  .r2-aviso { gap: 12px; }
+  .enviado-em { display: inline-flex; align-items: center; gap: 8px; }
+  .enviado-em .lbl { margin: 0; }
+  .enviado-em .dtw { width: 150px; }
+  .stbtn.chk { background: #fff3cd; border-color: #e6b800; color: #8a5a00; font-size: 11.5px; padding: 0 4px; animation: pulsaAviso 1.4s ease-in-out infinite; }
+  .stbtn.chk .dot { background: #e6a800; }
+  .sair { margin-left: 10px; background: #fff; border: 1px solid #cfd5dc; color: #111741; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .sair:hover { background: #f6f7f9; }
+  .ac-ok { color: var(--verde-forte); font-weight: 700; font-size: 12.5px; }
+  .ac-no { color: var(--alerta); font-weight: 700; font-size: 12.5px; }
+  .ac-cod { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .ac-cod b { font-size: 18px; background: var(--verde-claro); border: 1px dashed var(--verde); border-radius: 8px; padding: 2px 10px; letter-spacing: .15em; }
+  .ac-cod small { color: var(--cinza-500); }
+  .login .f { text-align: left; margin-bottom: 12px; }
+  .login .f label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+  .login .f input { width: 100%; }
+  .login .lnk2 { background: none; border: 0; color: var(--azul); text-decoration: underline; font-size: 13px; margin-top: 14px; }
+  .login .btn { width: 100%; justify-content: center; }
+  .topo-dir { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
+  .login { max-width: 420px; margin: 48px auto; background: var(--branco); border: 1px solid var(--cinza-100); border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 6px 24px rgba(17,23,65,.08); }
+  .login h2 { margin: 0 0 8px; color: #111741; }
+  .login p { margin: 0 0 20px; color: #5b6b7c; line-height: 1.5; }
+  .btn-google { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cfd5dc; background: #fff; border-radius: 10px; padding: 11px 20px; font: inherit; font-weight: 600; cursor: pointer; color: #1f2d3d; }
+  .btn-google:hover { background: #f6f7f9; }
+  .demo-tag { display: inline-block; background: #fff3cd; color: #8a5a00; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-left: 8px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js?v=3"></script>
+<script src="js/demo.js?v=3"></script>
+<script src="js/api.js?v=3"></script>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-in">
+    <div class="marca">
+      <div class="marca-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#46da86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M3 13l2-6h14l2 6v4H3z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/></svg></div>
+      <h1>Controle Consignado</h1>
+    </div>
+    <div class="topo-dir" id="topoDir"></div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"><div class="carregando"><div class="spin"></div>Carregando…</div></main>
+<div class="ov" id="ov"><div class="modal" id="modal"></div></div>
+<div class="ov" id="ov2" style="z-index:120"><div class="modal sm" id="modal2"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* trap */
+// vigia de erros: roda antes do restante e mostra na tela qualquer falha de carregamento
+window.__ok = false;
+window.addEventListener('error', function (e) {
+  var m = document.getElementById('main');
+  if (m && !window.__ok) m.innerHTML = '<div class="vazio"><h3>Erro na tela</h3><p>' + String(e.message).replace(/</g, '&lt;') + (e.lineno ? ' (linha ' + e.lineno + ')' : '') + '</p></div>';
+});
+(function () { var c = document.querySelector('.carregando'); if (c && c.lastChild) c.lastChild.textContent = 'Carregando… (etapa 1: página aberta)'; })();
+</script>
+<script>
+(function () {
+  var __c = document.querySelector(".carregando");
+  if (__c && __c.lastChild) __c.lastChild.textContent = "Carregando… (etapa 2: programa iniciado)";
+  const INICIAL = null;
+  const URL_FORM_BOLETO = window.CFG.URL_FORM_BOLETO;
+  const URL_CORREIOS = 'https://rastreamento.correios.com.br/app/index.php';
+  const UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
+  const S = {
+    d: null,
+    filtro: 'todos',
+    busca: '',
+    loja: '',
+    view: 'veiculos',
+    limite: 60,
+    imp: null,
+    prog: null,
+    sel: ''
+  };
+
+  /* ---------- ícones ---------- */
+  const I = {
+    lixo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+    check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    check2: '<svg width="18" height="14" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5l4.5 4.5L16 7.5M12 15.5l2 2L25 7.5"/></svg>',
+    laudo: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1c9a55" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 13l2.2 2.2L15.5 10.5"/></svg>',
+    copiar: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#111741" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
+    baixar: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111741" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
+    busca: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a8694" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+    upload: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#111741" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
+    vazio: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cfd5dc" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M3 13l2-6h14l2 6v4H3z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/></svg>'
+  };
+
+  /* ---------- utilitários ---------- */
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[c]);
+  const brl = n => Number(n || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+  const fdata = iso => {
+    const p = String(iso || '').slice(0, 10).split('-');
+    return p.length === 3 && p[0] ? "".concat(p[2], "/").concat(p[1], "/").concat(p[0]) : '—';
+  };
+  const fdh = iso => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d) ? '—' : d.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  const utc = iso => {
+    const p = iso.split('-');
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]);
+  };
+  const diff = (a, b) => Math.round((utc(a) - utc(b)) / 864e5);
+  const fcnpj = c => {
+    c = String(c).replace(/\D/g, '');
+    return c.length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c;
+  };
+  const norm = v => {
+    v.k = v.f + '|' + v.id;
+    return v;
+  };
+  function srvT(ms, fn, ...args) {
+    let t;
+    const limite = new Promise((res, rej) => { t = setTimeout(() => rej(new Error('O servidor não respondeu a tempo. Verifique a internet e tente de novo.')), ms); });
+    return Promise.race([API.call(fn, ...args), limite]).finally(() => clearTimeout(t));
+  }
+  function srv(fn, ...args) {
+    return srvT(45000, fn, ...args);
+  }
+  let toastT;
+  function toast(msg, erro) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = 'toast on' + (erro ? ' erro' : '');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => t.classList.remove('on'), erro ? 5200 : 2800);
+  }
+  async function busy(btn, fn) {
+    const txt = btn && btn.innerHTML;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = 'Aguarde…';
+    }
+    try {
+      return await fn();
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = txt;
+      }
+    }
+  }
+  function copiar(texto) {
+    if (!texto) return Promise.resolve(false);
+    const fallback = () => {
+      const t = document.createElement('textarea');
+      t.value = texto;
+      t.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(t);
+      t.select();
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch (e) {}
+      document.body.removeChild(t);
+      return ok;
+    };
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(texto).then(() => true).catch(() => fallback());
+    return Promise.resolve(fallback());
+  }
+  function baixarB64(f) {
+    const bin = atob(f.b64),
+      arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], {
+      type: f.mime || 'application/pdf'
+    }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name || 'boleto.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  function lerArquivo(file) {
+    return new Promise((res, rej) => {
+      if (!file) return res(null);
+      if (file.size > 9 * 1024 * 1024) return rej(new Error('Arquivo muito grande (máx. 9 MB).'));
+      const r = new FileReader();
+      r.onload = () => res({
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        b64: String(r.result).split(',')[1]
+      });
+      r.onerror = () => rej(new Error('Não foi possível ler o arquivo.'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  /* ---------- máscaras ---------- */
+  const mask = {
+    cnpj: v => v.replace(/\D/g, '').slice(0, 14).replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2'),
+    cpf: v => v.replace(/\D/g, '').slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'),
+    cpfcnpj: v => v.replace(/\D/g, '').length > 11 ? mask.cnpj(v) : mask.cpf(v),
+    cep: v => v.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'),
+    money: v => {
+      const d = v.replace(/\D/g, '');
+      return d ? (parseInt(d, 10) / 100).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      }) : '';
+    },
+    upper: v => v.toUpperCase()
+  };
+  document.addEventListener('input', e => {
+    const m = e.target.dataset && e.target.dataset.mask;
+    if (m && mask[m]) e.target.value = mask[m](e.target.value);
+    if (e.target.classList.contains('erro')) e.target.classList.remove('erro');
+  });
+
+  /* ---------- regras de negócio ---------- */
+  function etapa(v) {
+    if (v.docStatus === 'enviado') return 'docto';
+    if (v.boletoStatus === 'pago') return 'pago';
+    if (v.boletoStatus === 'recebido') return 'recebido';
+    if (v.boletoStatus === 'solicitado') return 'solicitado';
+    return 'novo';
+  }
+  function diasInfo(v) {
+    if (!v.prazo) return {
+      n: null,
+      txt: '—',
+      cls: 'muted'
+    };
+    const n = diff(v.prazo, S.d.hoje);
+    const cls = v.docStatus === 'enviado' ? 'done' : n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
+    return {
+      n,
+      txt: String(n),
+      cls
+    };
+  }
+  const urgente = v => {
+    const i = diasInfo(v);
+    return i.n !== null && i.n <= 15 && v.docStatus !== 'enviado';
+  };
+  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Pagar boleto', v => etapa(v) === 'recebido'], ['pago', 'Pago · pedir documento', v => etapa(v) === 'pago'], ['docto', 'Documento pedido', v => etapa(v) === 'docto'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
+  function base() {
+    const q = S.busca.trim().toLowerCase();
+    return S.d.veiculos.filter(v => (!S.loja || v.cnpj === S.loja) && (!q || v.placa.toLowerCase().includes(q) || v.modelo.toLowerCase().includes(q) || v.loja.toLowerCase().includes(q)));
+  }
+  function ordenar(a, b) {
+    const ea = etapa(a) === 'docto',
+      eb = etapa(b) === 'docto';
+    if (ea !== eb) return ea ? 1 : -1;
+    // veículos novos (ainda sem boleto) primeiro; dentro deles, os mais recentes da importação no topo
+    const na = etapa(a) === 'novo',
+      nb = etapa(b) === 'novo';
+    if (na !== nb) return na ? -1 : 1;
+    if (na && nb) return (b.ordem || 0) - (a.ordem || 0) || a.placa.localeCompare(b.placa);
+    const pa = a.prazo || '9999',
+      pb = b.prazo || '9999';
+    return pa.localeCompare(pb) || a.placa.localeCompare(b.placa);
+  }
+  const adm = () => S.d.role === 'admin';
+  async function carrega() {
+    const d = await srv('api_listar', adm() && S.sel ? {
+      fileId: S.sel
+    } : {});
+    d.veiculos.forEach(norm);
+    S.d = d;
+  }
+
+  /* ---------- render: estrutura ---------- */
+  function render() {
+    const d = S.d;
+    let chip;
+    if (adm()) chip = '<span class="chip-loja">Administrador</span>';else if (d.bases.length === 1) chip = "<span class=\"chip-loja\">".concat(esc(d.bases[0].nome), "<small>").concat(esc(fcnpj(d.bases[0].cnpj)), "</small></span>");else chip = "<span class=\"chip-loja\">".concat(d.bases.length, " lojas<small>").concat(esc(d.email), "</small></span>");
+    $('#topoDir').innerHTML = chip + (API.demo ? '<span class="demo-tag">demonstração</span>' : '') + '<button class="sair" data-act="trocarSenha" title="Trocar a sua senha">Trocar senha</button><button class="sair" data-act="sair" title="Sair desta conta">Sair</button>';
+    $('#tabs').innerHTML = adm() ? [['veiculos', 'Veículos'], ['importar', 'Importar planilha'], ['lojas', 'Lojas e acessos']].map(([k, t]) => "<button class=\"tab ".concat(S.view === k ? 'on' : '', "\" data-act=\"aba\" data-k=\"").concat(k, "\">").concat(t, "</button>")).join('') : '';
+    if (S.view === 'importar' && adm()) $('#main').innerHTML = viewImportar();else if (S.view === 'lojas' && adm()) $('#main').innerHTML = viewLojas();else if (S.view === 'destinos' && adm()) $('#main').innerHTML = viewDestinos();else $('#main').innerHTML = viewVeiculos();
+  }
+  function viewVeiculos() {
+    const d = S.d;
+    const btnNovo = (adm() ? d.lojas.length : d.bases.length) ? '<button class="btn pri" data-act="novoVeiculo" title="Incluir um veículo manualmente">+ Novo veículo</button>' : '';
+    const barraAdm = adm() ? "<select class=\"sel-loja\" data-chg=\"selBase\"><option value=\"\">Escolha uma loja…</option><option value=\"*\" ".concat(S.sel === '*' ? 'selected' : '', ">TODAS AS LOJAS (").concat(d.lojas.reduce((t, l) => t + l.total, 0), ")</option>").concat(d.lojas.map(l => "<option value=\"".concat(esc(l.fileId), "\" ").concat(S.sel === l.fileId ? 'selected' : '', ">").concat(esc(l.nome), " (").concat(l.total, ")</option>")).join(''), "</select>") : '';
+    if (adm() && !S.sel) {
+      return "<div class=\"barra\">".concat(barraAdm).concat(btnNovo, "</div><div class=\"vazio\">").concat(I.vazio, "<h3>Escolha uma loja</h3><p>").concat(d.lojas.length ? 'Selecione acima para ver os veículos dela.' : 'Importe a planilha de ofertas para criar as lojas.', "</p>").concat(d.lojas.length ? '' : '<button class="btn pri" data-act="aba" data-k="importar">Importar planilha</button>', "</div>");
+    }
+    const b = base();
+    const lista = b.filter(FILTROS.find(f => f[0] === S.filtro)[2]).sort(ordenar);
+    const chips = FILTROS.map(([k, t, fn]) => "<button class=\"fchip ".concat(S.filtro === k ? 'on' : '', "\" data-act=\"filtro\" data-k=\"").concat(k, "\">").concat(t, "<b>").concat(b.filter(fn).length, "</b></button>")).join('');
+    const multi = !adm() && d.bases.length > 1 ? "<select class=\"sel-loja\" data-chg=\"selLoja\"><option value=\"\">Todas as lojas</option>".concat(d.bases.map(l => "<option value=\"".concat(l.cnpj, "\" ").concat(S.loja === l.cnpj ? 'selected' : '', ">").concat(esc(l.nome), "</option>")).join(''), "</select>") : '';
+    const aviso = '';
+    let corpo;
+    if (!d.veiculos.length) {
+      corpo = "<div class=\"vazio\">".concat(I.vazio, "<h3>").concat(adm() ? 'Esta loja ainda não tem veículos' : 'Nenhum veículo liberado', "</h3><p>").concat(adm() ? 'Importe a planilha para alimentar a base.' : 'Quando o administrador importar a planilha, os veículos da sua loja aparecem aqui.', "</p></div>");
+    } else if (!lista.length) {
+      corpo = "<div class=\"vazio\">".concat(I.vazio, "<h3>Nada encontrado</h3><p>Ajuste a busca ou o filtro.</p></div>");
+    } else {
+      const vis = lista.slice(0, S.limite);
+      corpo = "<div class=\"cab\"><div>Placa</div><div>Modelo</div><div>Valor venda</div><div>Laudo</div><div>Dt oferta</div><div>Dt coleta</div><div>Prazo boleto</div><div>Dias</div><div>Boleto</div><div>Documento</div><div></div></div>" + vis.map(v => cardHTML(v)).join('') + (lista.length > vis.length ? "<button class=\"mais\" data-act=\"mais\">Mostrar mais (".concat(lista.length - vis.length, ")</button>") : '');
+    }
+    return "".concat(aviso, "<div class=\"barra\"><div class=\"busca\">").concat(I.busca, "<input type=\"search\" id=\"busca\" placeholder=\"Buscar placa, modelo").concat(adm() ? '' : ' ou loja', "\" value=\"").concat(esc(S.busca), "\" data-chg=\"busca\"></div>").concat(barraAdm).concat(multi).concat(btnNovo, "</div><div class=\"filtros\">").concat(chips, "</div><div id=\"lista\">").concat(corpo, "</div>");
+  }
+  function btnBoleto(v) {
+    const s = "data-act=\"boleto\" data-id=\"".concat(esc(v.k), "\"");
+    if (v.boletoStatus === 'pago') return "<button class=\"stbtn pago\" ".concat(s, " title=\"Comprovante enviado\">").concat(I.check2, "Boleto</button>");
+    if (v.boletoStatus === 'recebido') return "<button class=\"stbtn ok\" ".concat(s, " title=\"Boleto recebido — falta enviar o comprovante\">").concat(I.check, "Boleto</button>");
+    if (v.boletoStatus === 'solicitado' && S.chk && S.chk[v.k]) return "<button class=\"stbtn wait chk\" " + s + " title=\"Clique para verificar de novo\"><span class=\"dot\"></span>Verifique e-mail</button>";
+    if (v.boletoStatus === 'solicitado') return "<button class=\"stbtn wait\" ".concat(s, " title=\"Aguardando o boleto chegar\"><span class=\"dot\"></span>Aguardando</button>");
+    return "<button class=\"stbtn idle\" ".concat(s, " title=\"Solicitar boleto\">Boleto</button>");
+  }
+  function btnDocto(v) {
+    const s = "data-act=\"finalizar\" data-id=\"" + esc(v.k) + "\"";
+    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') return "<button class=\"stbtn fin\" " + s + " title=\"Documento recebido: remove este veículo da lista\">Documento recebido</button>";
+    return "<button class=\"stbtn fin\" disabled title=\"Disponível depois que o boleto chegar\">Documento recebido</button>";
+  }
+  // dias úteis (seg a sex) desde a data informada até hoje
+  function diasUteisDesde(iso) {
+    const d = new Date(iso);
+    if (isNaN(d) || !S.d || !S.d.hoje) return null;
+    const p = S.d.hoje.split('-'), fim = new Date(+p[0], +p[1] - 1, +p[2]);
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    let n = 0;
+    for (let i = 0; i < 800; i++) {
+      t.setDate(t.getDate() + 1);
+      if (t > fim) break;
+      if (t.getDay() !== 0 && t.getDay() !== 6) n++;
+    }
+    return n;
+  }
+  // data do pedido + contador de dias úteis; fica vermelho quando passa do limite e o item ainda não chegou
+  function contadorHoras(iso, limiteH) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const h = (Date.now() - d.getTime()) / 36e5, dias = Math.floor(h / 24), dm = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+    const atraso = h > limiteH;
+    return '<span class="cont' + (atraso ? ' atraso' : '') + '" title="Formulário acionado em ' + dm + ' · ' + Math.floor(h) + ' horas' + (atraso ? ' — boleto ainda não chegou (limite: ' + limiteH + ' horas)' : '') + '">' + dm + ' · ' + dias + (dias === 1 ? ' dia' : ' dias') + '</span>';
+  }
+  function contador(iso, limite, o) {
+    const n = diasUteisDesde(iso);
+    if (n === null) return '';
+    const d = new Date(iso), dm = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+    const atraso = n > limite;
+    return '<span class="cont' + (atraso ? ' atraso' : '') + '" title="Pedido em ' + dm + ' · ' + n + ' dias úteis' + (atraso ? ' — ' + o + ' ainda não chegou (limite: ' + limite + ' dias úteis)' : '') + '">' + dm + ' · ' + n + (n === 1 ? ' dia' : ' dias') + '</span>';
+  }
+  function cardHTML(v) {
+    const di = diasInfo(v),
+      id = esc(v.k);
+    const dls = v.boletoArquivos.map(f => "<button class=\"dl\" data-act=\"baixar\" data-id=\"".concat(id, "\" data-f=\"").concat(esc(f.id), "\" title=\"Baixar boleto\">").concat(I.baixar).concat(esc(f.name), "</button>")).join('');
+    let boletoBloco = '';
+    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') {
+      boletoBloco = "<div class=\"r2 r2-aviso\"><span class=\"lbl chegou" + (v.docEnviadoEm ? " ok" : "") + "\"><i class=\"dot verde\"></i>" + (v.docEnviadoEm ? "Boleto enviado" : "Boleto chegou no e-mail") + "</span>" +
+        "<span class=\"enviado-em\"><span class=\"dtw\"><input type=\"date\" class=\"dtp" + (v.docEnviadoEm ? '' : ' vazio') + "\" value=\"" + esc(String(v.docEnviadoEm || '').slice(0, 10)) + "\" data-chg=\"enviadoem\" data-id=\"" + id + "\" title=\"Clique para escolher a data em que o boleto foi enviado\">" + (v.docEnviadoEm ? '' : '<span class=\"dtph\">Data do envio</span>') + "</span></span>" +
+        (v.boletoStatus === 'pago' ? "<span class=\"lbl\">Comprovante enviado em " + fdata(v.comprovanteEm) + "</span>" : '') + "</div>";
+    }
+    const lembDoc = '';
+    const rast = v.docStatus === 'enviado' ? "<div class=\"r2 r2-rast\" style=\"margin-left:auto\"><label>Código de rastreio</label>\n      <div class=\"rastreio\"><input type=\"text\" class=\"mono\" maxlength=\"13\" placeholder=\"AA123456789BR\" value=\"".concat(esc(v.rastreio), "\" data-mask=\"upper\" data-chg=\"rastreio\" data-id=\"").concat(id, "\">\n      <button class=\"ibtn\" data-act=\"copiar\" data-id=\"").concat(id, "\" title=\"Copiar código\">").concat(I.copiar, "</button>\n      <a class=\"lnk\" href=\"").concat(URL_CORREIOS, "\" target=\"_blank\" rel=\"noopener\" data-act=\"correios\" data-id=\"").concat(id, "\" title=\"Copia o código e abre o site dos Correios\">Rastrear nos Correios ↗</a>\n      </div></div>") : '';
+    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor venda\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor de venda\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Laudo\">").concat(v.laudo ? "<a class=\"laudo\" href=\"".concat(esc(v.laudo), "\" target=\"_blank\" rel=\"noopener\" title=\"Abrir laudo cautelar\">").concat(I.laudo, "</a>") : '<span class="muted">—</span>', "</div>\n    <div class=\"c\" data-l=\"Dt oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Dt coleta\"><div class=\"dtw\"><input type=\"date\" class=\"dtp").concat(v.dtColeta ? '' : ' vazio', "\" value=\"").concat(esc(v.dtColeta), "\" data-chg=\"coleta\" data-id=\"").concat(id, "\" title=\"Clique para escolher a data no calendário\">").concat(v.dtColeta ? '' : '<span class=\"dtph\">Escolha a data</span>', "</div></div>\n    <div class=\"c\" data-l=\"Prazo boleto\">").concat(fdata(v.prazo), "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes para o prazo do boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat(v.docStatus === 'enviado' ? contador(v.docEnviadoEm, 12, 'documento') : '', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat(boletoBloco || rast || lembDoc ? "<div class=\"row2\">".concat(boletoBloco).concat(lembDoc).concat(rast, "</div>") : '', "\n</article>");
+  }
+
+  /* ---------- ações na lista ---------- */
+  function getV(k) {
+    return S.d.veiculos.find(v => v.k === k);
+  }
+  function atualiza(v) {
+    norm(v);
+    const i = S.d.veiculos.findIndex(x => x.k === v.k);
+    S.d.veiculos[i] = v;
+    const el = document.querySelector(".card[data-id=\"".concat(CSS.escape(v.k), "\"]"));
+    if (el && S.view === 'veiculos') {
+      const t = document.createElement('div');
+      t.innerHTML = cardHTML(v);
+      el.replaceWith(t.firstElementChild);
+      const ch = $('.filtros');
+      if (ch) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = viewVeiculos();
+        ch.replaceWith($('.filtros', tmp));
+      }
+    } else render();
+  }
+  const H = {
+    novoVeiculo() { modalNovo(); },
+    sair() { if (confirm('Sair desta conta?')) API.sair(); },
+    trocarSenha() { modalSenha(); },
+    gerarCodigo(el) {
+      const l = S.d.lojas.find(x => x.cnpj === el.dataset.cnpj);
+      if (!l) return;
+      if (l.liberado && !confirm('A loja ' + l.nome + ' já tem senha. Gerar um código novo para ela criar outra senha?\n\nA senha atual continua valendo até a loja criar a nova.')) return;
+      busy(el, async () => {
+        const r = await srv('api_gerarCodigo', l.cnpj);
+        l.codigo = r.codigo; l.codigoEm = r.codigo_em;
+        render();
+        toast('Código gerado: ' + r.codigo + '. Use o botão de copiar para mandar à loja.');
+      });
+    },
+    copiarCodigo(el) {
+      const l = S.d.lojas.find(x => x.cnpj === el.dataset.cnpj);
+      const msg = 'Acesso ao Controle Consignado\nLink: ' + location.origin + location.pathname + '\nUsuário (CNPJ): ' + l.cnpj + '\nCódigo: ' + l.codigo + '\n\nNo primeiro acesso, clique em "Primeiro acesso / esqueci a senha", digite o CNPJ, o código e crie a sua senha. O código vale 7 dias.';
+      copiar(msg).then(ok => toast(ok ? 'Mensagem copiada! Cole no WhatsApp ou e-mail da loja.' : 'Não foi possível copiar.', !ok));
+    },
+    desfazer(el) {
+      const v = getV(el.dataset.id);
+      if (!v || !confirm('Voltar o boleto de ' + v.placa + ' para "não solicitado"?')) return;
+      busy(el, async () => { const nv = await srv('api_desfazerBoleto', v.f, v.id); fechaModal(); atualiza(nv); toast('Pedido de boleto desfeito.'); });
+    },
+    pausa(el) {
+      const v = getV(el.dataset.id);
+      srv('api_pausarLembretes', v.f, v.id, !v.lembretePausado).then(nv => { atualiza(nv); toast(nv.lembretePausado ? 'Lembretes pausados.' : 'Lembretes retomados.'); }).catch(x => toast(x.message, true));
+    },
+    destAdd(el) {
+      const t = el.dataset.t, inp = $('#dn-' + t), m = inp.value.trim();
+      if (!m) { inp.focus(); return; }
+      if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(m)) { toast('E-mail inválido.', true); inp.focus(); return; }
+      const lista = (S.d.destinosListas[t] || []).slice();
+      if (lista.some(x => x.email.toLowerCase() === m.toLowerCase())) { toast('Esse e-mail já está na lista.', true); return; }
+      lista.push({ email: m, ativo: true });
+      el.disabled = true;
+      salvaDestinos(t, lista, 'E-mail adicionado.');
+    },
+    destTog(el) {
+      const t = el.dataset.t, i = +el.dataset.i, lista = (S.d.destinosListas[t] || []).map(d => ({ email: d.email, ativo: d.ativo }));
+      lista[i].ativo = el.checked;
+      salvaDestinos(t, lista, lista[i].ativo ? 'E-mail ativado.' : 'E-mail pausado.');
+    },
+    destDel(el) {
+      const t = el.dataset.t, i = +el.dataset.i, lista = (S.d.destinosListas[t] || []).slice(), m = lista[i].email;
+      if (!confirm('Remover ' + m + ' da lista? (Para só pausar, desmarque a caixa.)')) return;
+      lista.splice(i, 1);
+      salvaDestinos(t, lista, 'E-mail removido.');
+    },
+    aba(el) {
+      S.view = el.dataset.k;
+      render();
+      window.scrollTo(0, 0);
+    },
+    filtro(el) {
+      S.filtro = el.dataset.k;
+      S.limite = 60;
+      render();
+    },
+    mais() {
+      S.limite += 60;
+      render();
+    },
+    boleto(el) {
+      const v = getV(el.dataset.id);
+      if (v.boletoStatus === 'recebido') return;   // comprovante agora é enviado direto pelo e-mail do usuário
+      v.boletoStatus ? modalBoletoStatus(v) : modalPlaca(v);
+    },
+    docto(el) {
+      const v = getV(el.dataset.id);
+      v.docStatus === 'enviado' ? modalDoctoEnviado(v) : modalDocto(v);
+    },
+    excluir(el) {
+      const v = getV(el.dataset.id);
+      if (!v) return;
+      const andamento = v.boletoStatus ? '\n\nAtenção: este veículo já está em andamento (boleto ' + (v.boletoStatus === 'pago' ? 'pago' : v.boletoStatus === 'recebido' ? 'recebido' : 'solicitado') + ').' : '';
+      if (!confirm('Excluir ' + v.placa + ' (' + v.modelo + ') da lista?\n\nUse quando o carro for devolvido ou não for retirado. A linha será apagada do banco de dados e não volta numa nova importação. Isso não pode ser desfeito.' + andamento + '')) return;
+      el.disabled = true;
+      srv('api_excluir', v.f, v.id).then(() => {
+        S.d.veiculos = S.d.veiculos.filter(x => x.k !== v.k);
+        render();
+        toast(v.placa + ' foi excluído da lista.');
+      }).catch(x => {
+        el.disabled = false;
+        toast(x.message, true);
+      });
+    },
+    finalizar(el) {
+      const v = getV(el.dataset.id);
+      if (!v) return;
+      if (!confirm('Finalizar o processo de ' + v.placa + ' (' + v.modelo + ')?\n\nA linha será apagada da lista e do banco de dados. Isso não pode ser desfeito.')) return;
+      el.disabled = true;
+      srv('api_finalizar', v.f, v.id).then(() => {
+        S.d.veiculos = S.d.veiculos.filter(x => x.k !== v.k);
+        render();
+        toast('Processo finalizado. ' + v.placa + ' saiu da lista.');
+      }).catch(x => {
+        el.disabled = false;
+        toast(x.message, true);
+      });
+    },
+    copiar(el) {
+      const v = getV(el.dataset.id);
+      if (!v.rastreio) return toast('Preencha o código de rastreio primeiro.', true);
+      copiar(v.rastreio).then(ok => toast(ok ? 'Código copiado!' : 'Não foi possível copiar. Selecione o código manualmente.', !ok));
+    },
+    cpPlaca(el) {
+      const v = getV(el.dataset.id);
+      copiar(v.placa).then(ok => toast(ok ? 'Placa copiada!' : 'Não foi possível copiar.', !ok));
+    },
+    cpValor(el) {
+      const v = getV(el.dataset.id), n = Number(v.valorVenda) || 0;
+      copiar(n.toFixed(2).replace('.', ',')).then(ok => toast(ok ? 'Valor copiado: ' + n.toFixed(2).replace('.', ',') : 'Não foi possível copiar.', !ok));
+    },
+    correios(el) {
+      const v = getV(el.dataset.id);
+      if (v.rastreio) copiar(v.rastreio).then(ok => ok && toast('Código copiado — cole no site dos Correios'));
+    },
+    baixar(el) {
+      const v = getV(el.dataset.id);
+      avisoBeneficiario(() => busy(el, async () => baixarB64(await srv('api_baixarBoleto', v.f, v.id, el.dataset.f))));
+    },
+    fechar2() { fechaAviso(); },
+    okAviso() { const f = S.cbAviso; fechaAviso(); if (f) f(); },
+    fechar() {
+      fechaModal();
+    },
+    limparImp() {
+      if (S.prog) return;
+      S.imp = null;
+      render();
+    },
+    verLoja(el) {
+      S.sel = el.dataset.f;
+      S.view = 'veiculos';
+      S.filtro = 'todos';
+      S.busca = '';
+      busy(null, async () => {
+        await carrega();
+        render();
+      });
+    },
+    copiarEmail(el) {
+      copiar(el.dataset.v).then(ok => toast(ok ? 'Copiado!' : 'Não foi possível copiar.', !ok));
+    }
+  };
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    if (H[el.dataset.act]) H[el.dataset.act](el, e);
+  });
+  document.addEventListener('change', e => {
+    const el = e.target,
+      k = el.dataset && el.dataset.chg;
+    if (!k) return;
+    const v = el.dataset.id ? getV(el.dataset.id) : null;
+    const falha = x => toast(x.message, true);
+    if (k === 'coleta' && el.value && !/^20\d{2}-\d{2}-\d{2}$/.test(el.value)) return;   // ignora data incompleta
+    if (k === 'enviadoem') {
+      if (el.value && !/^20\d{2}-\d{2}-\d{2}$/.test(el.value)) return;
+      srv('api_salvarEnviadoEm', v.f, v.id, el.value).then(atualiza).catch(falha);
+      return;
+    }
+    if (k === 'coleta') srv('api_salvarColeta', v.f, v.id, el.value).then(atualiza).catch(falha);else if (k === 'rastreio') srv('api_salvarRastreio', v.f, v.id, el.value).then(n => {
+      atualiza(n);
+      toast(n.rastreio ? 'Código salvo.' : 'Código removido.');
+    }).catch(x => {
+      falha(x);
+      el.classList.add('erro');
+    });else if (k === 'valor') {
+      const n = parseInt(el.value.replace(/\D/g, '') || '0', 10) / 100;
+      if (!(n > 0)) { toast('Informe um valor de venda válido.', true); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); }
+      else if (Math.round(n * 100) !== Math.round((Number(v.valorVenda) || 0) * 100)) srv('api_salvarValor', v.f, v.id, n).then(r => { atualiza(r); toast('Valor de venda atualizado.'); }).catch(x => { falha(x); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); });
+    } else if (k === 'selLoja') {
+      S.loja = el.value;
+      S.limite = 60;
+      render();
+    } else if (k === 'selBase') {
+      S.sel = el.value;
+      S.filtro = 'todos';
+      S.limite = 60;
+      if (!S.sel) {
+        S.d.veiculos = [];
+        S.d.bases = [];
+        render();
+      } else busy(null, async () => {
+        await carrega();
+        render();
+      });
+    } else if (k === 'emailLoja') {
+      const cnpj = el.dataset.cnpj;
+      srv('api_salvarEmailLoja', cnpj, el.value).then(l => {
+        const i = S.d.lojas.findIndex(x => x.cnpj === cnpj);
+        if (i >= 0) S.d.lojas[i] = l;
+        render();
+        toast(l.email ? "Acesso liberado para ".concat(l.email) : 'Acesso removido.');
+      }).catch(x => {
+        falha(x);
+        el.classList.add('erro');
+      });
+    }
+  });
+  document.addEventListener('input', e => {
+    if (e.target.id === 'busca') {
+      S.busca = e.target.value;
+      S.limite = 60;
+      const pos = e.target.selectionStart;
+      render();
+      const b = $('#busca');
+      b.focus();
+      b.setSelectionRange(pos, pos);
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') fechaModal();
+    if (e.key === 'Enter' && e.target.dataset && e.target.dataset.dnovo) { e.preventDefault(); H.destAdd($('[data-act="destAdd"][data-t="' + e.target.dataset.dnovo + '"]')); }
+    if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja')) e.target.blur();
+  });
+
+  /* ---------- modal ---------- */
+  /* data da coleta: só pelo calendário (digitar à mão dispara gravações com datas incompletas) */
+  function abreCalendario(el) { try { el.showPicker(); } catch (e) { } }
+  document.addEventListener('click', e => { const el = e.target; if (el.classList && el.classList.contains('dtp')) abreCalendario(el); });
+  document.addEventListener('keydown', e => {
+    const el = e.target;
+    if (!el.classList || !el.classList.contains('dtp')) return;
+    if (e.key === 'Tab' || e.key === 'Escape') return;
+    e.preventDefault();
+    if (e.key === 'Enter' || e.key === ' ') abreCalendario(el);
+    else if ((e.key === 'Backspace' || e.key === 'Delete') && el.value) { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  /* ---------- aviso antes de baixar o boleto: conferir o beneficiário ---------- */
+  const IMG_BENEFICIARIO = 'data:image/jpeg;base64,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';
+  function avisoBeneficiario(cb) {
+    S.cbAviso = cb;
+    $('#modal2').innerHTML = '<div class="m-head"><div><h2>Atenção</h2></div><button class="m-x" data-act="fechar2" aria-label="Fechar">×</button></div>' +
+      '<div class="m-body"><p style="margin:0 0 12px;font-size:17px;font-weight:700;color:var(--perigo)">Pagar somente o boleto se o beneficiário for a LM.</p>' +
+      '<p class="muted" style="margin:0 0 10px">Confira no boleto os <b>Dados do beneficiário original</b>. Eles devem ser como no exemplo abaixo:</p>' +
+      '<img src="' + IMG_BENEFICIARIO + '" alt="Exemplo: beneficiário original LM TRANSP INTER SERV COM LTDA, CNPJ 00.389.481/0001-79" style="width:100%;border:1px solid var(--cinza-100);border-radius:8px;display:block;margin-bottom:12px"></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar2">Cancelar</button><button class="btn pri" data-act="okAviso">Entendi</button></div>';
+    $('#ov2').classList.add('on');
+    document.body.style.overflow = 'hidden';
+  }
+  function fechaAviso() {
+    $('#ov2').classList.remove('on');
+    $('#modal2').innerHTML = '';
+    document.body.style.overflow = $('#ov').classList.contains('on') ? 'hidden' : '';
+  }
+  $('#ov2').addEventListener('mousedown', e => { if (e.target.id === 'ov2') fechaAviso(); });
+  function abreModal(html, small) {
+    $('#modal').className = 'modal' + (small ? ' sm' : '');
+    $('#modal').innerHTML = html;
+    $('#ov').classList.add('on');
+    $('#ov').scrollTop = 0;
+    document.body.style.overflow = 'hidden';
+  }
+  function fechaModal() {
+    $('#ov').classList.remove('on');
+    $('#modal').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+  $('#ov').addEventListener('mousedown', e => {
+    if (e.target.id === 'ov') fechaModal();
+  });
+  const mHead = (t, sub) => "<div class=\"m-head\"><div><h2>".concat(t, "</h2>").concat(sub ? "<p>".concat(sub, "</p>") : '', "</div><button class=\"m-x\" data-act=\"fechar\" aria-label=\"Fechar\">×</button></div>");
+  function F(k, label, o) {
+    o = o || {};
+    const val = esc((o.v != null ? o.v : '') + '');
+    const cls = 'f' + (o.w2 ? ' w2' : ''),
+      req = o.req ? ' <em>*</em>' : '';
+    let ctl;
+    if (o.uf) ctl = "<select data-k=\"".concat(k, "\" ").concat(o.req ? 'data-req' : '', "><option value=\"\"></option>").concat(UFS.map(u => "<option ".concat(u === o.v ? 'selected' : '', ">").concat(u, "</option>")).join(''), "</select>");else if (o.sel) ctl = "<select data-k=\"".concat(k, "\" ").concat(o.req ? 'data-req' : '', ">").concat(o.sel.map(x => "<option value=\"".concat(esc(x.value), "\" ").concat(x.value === o.v ? 'selected' : '', ">").concat(esc(x.label), "</option>")).join(''), "</select>");else ctl = "<input type=\"".concat(o.type || 'text', "\" data-k=\"").concat(k, "\" value=\"").concat(val, "\" ").concat(o.mask ? "data-mask=\"".concat(o.mask, "\"") : '', " ").concat(o.ro ? 'readonly' : '', " ").concat(o.req ? 'data-req' : '', " ").concat(o.ph ? "placeholder=\"".concat(esc(o.ph), "\"") : '', ">");
+    return "<div class=\"".concat(cls, "\"><label>").concat(label).concat(req, "</label>").concat(ctl).concat(o.hint ? "<div class=\"hint\">".concat(o.hint, "</div>") : '', "</div>");
+  }
+  function coleta(root) {
+    const o = {};
+    root.querySelectorAll('[data-k]').forEach(el => {
+      if (!el.readOnly) o[el.dataset.k] = el.value.trim();
+    });
+    return o;
+  }
+  function valida(root) {
+    let primeiro = null;
+    root.querySelectorAll('[data-req]').forEach(el => {
+      const bad = !el.value.trim() || el.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value.trim());
+      el.classList.toggle('erro', bad);
+      if (bad && !primeiro) primeiro = el;
+    });
+    root.querySelectorAll('details.sec').forEach(d => {
+      if (d.querySelector('.erro')) d.open = true;
+    });
+    if (primeiro) {
+      primeiro.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth'
+      });
+      primeiro.focus({
+        preventScroll: true
+      });
+      toast('Preencha os campos destacados.', true);
+      return false;
+    }
+    return true;
+  }
+  function gruposDados(p) {
+    return {
+      veiculo: "<div class=\"grid\">".concat(F('chassi', 'Chassi', {
+        v: p.chassi,
+        req: 1
+      })).concat(F('renavam', 'Renavam', {
+        v: p.renavam,
+        req: 1
+      })).concat(F('hodometro', 'Hodômetro', {
+        v: p.hodometro,
+        req: 1
+      })).concat(F('marca', 'Marca', {
+        v: p.marca,
+        req: 1
+      })).concat(F('ufEmplacamento', 'UF emplacamento', {
+        v: p.ufEmplacamento,
+        uf: 1,
+        req: 1
+      }), "</div>"),
+      loja: "<div class=\"grid\">".concat(F('lojaRazao', 'Razão social', {
+        v: p.lojaRazao,
+        req: 1,
+        w2: 1
+      })).concat(F('lojaEmail', 'E-mail da loja', {
+        v: p.lojaEmail,
+        type: 'email',
+        req: 1
+      })).concat(F('lojaProduto', 'Produto', {
+        v: p.lojaProduto,
+        req: 1
+      })).concat(F('lojaRua', 'Rua/Avenida', {
+        v: p.lojaRua,
+        req: 1,
+        w2: 1
+      })).concat(F('lojaNumero', 'Nº', {
+        v: p.lojaNumero,
+        req: 1
+      })).concat(F('lojaBairro', 'Bairro', {
+        v: p.lojaBairro,
+        req: 1
+      })).concat(F('lojaCep', 'CEP', {
+        v: p.lojaCep,
+        mask: 'cep',
+        req: 1
+      })).concat(F('lojaCidade', 'Cidade', {
+        v: p.lojaCidade,
+        req: 1
+      })).concat(F('lojaUf', 'UF', {
+        v: p.lojaUf,
+        uf: 1,
+        req: 1
+      }), "</div>"),
+      cliente: "<div class=\"grid\">".concat(F('cliNome', 'Nome do cliente', {
+        v: p.cliNome,
+        req: 1,
+        w2: 1
+      })).concat(F('cliDoc', 'CPF/CNPJ', {
+        v: p.cliDoc,
+        mask: 'cpfcnpj',
+        req: 1
+      })).concat(F('cliRg', 'RG', {
+        v: p.cliRg,
+        req: 1
+      })).concat(F('cliRua', 'Rua/Avenida', {
+        v: p.cliRua,
+        req: 1,
+        w2: 1
+      })).concat(F('cliNumero', 'Nº', {
+        v: p.cliNumero,
+        req: 1
+      })).concat(F('cliComplemento', 'Complemento', {
+        v: p.cliComplemento
+      })).concat(F('cliBairro', 'Bairro', {
+        v: p.cliBairro,
+        req: 1
+      })).concat(F('cliCep', 'CEP', {
+        v: p.cliCep,
+        mask: 'cep',
+        req: 1
+      })).concat(F('cliCidade', 'Cidade', {
+        v: p.cliCidade,
+        req: 1
+      })).concat(F('cliUf', 'UF', {
+        v: p.cliUf,
+        uf: 1,
+        req: 1
+      }), "</div>")
+    };
+  }
+  const dlChips = v => v.boletoArquivos.map(f => "<button class=\"dl\" data-act=\"baixar\" data-id=\"".concat(esc(v.k), "\" data-f=\"").concat(esc(f.id), "\">").concat(I.baixar).concat(esc(f.name), "</button>")).join('');
+
+  /* ---------- 1) modal: solicitar boleto ---------- */
+  function modalNovo() {
+    const opcoes = adm() ? S.d.lojas.filter(l => l.fileId).map(l => ({ value: l.fileId, label: l.nome })) : S.d.bases.map(b => ({ value: b.fileId, label: b.nome }));
+    const pre = adm() ? (S.sel && S.sel !== '*' ? S.sel : (opcoes.length === 1 ? opcoes[0].value : '')) : (opcoes.length === 1 ? opcoes[0].value : (S.loja ? (S.d.bases.find(b => b.cnpj === S.loja) || {}).fileId : ''));
+    const hoje = new Date(), dh = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+    abreModal(mHead('Novo veículo', 'Preencha os mesmos dados que vêm da planilha de ofertas') +
+      '<div class="m-body" id="mf"><div class="grid">' +
+      F('fid', 'Loja', { sel: [{ value: '', label: 'Escolha a loja…' }].concat(opcoes), v: pre, req: 1, w2: 1 }) +
+      F('placa', 'Placa', { req: 1, mask: 'upper', ph: 'ABC1D23' }) +
+      F('modelo', 'Modelo', { req: 1 }) +
+      F('valorVenda', 'Valor venda', { req: 1, mask: 'money', ph: 'R$ 0,00' }) +
+      F('hodometro', 'Hodômetro', { ph: 'km' }) +
+      F('dtOferta', 'Data da oferta', { type: 'date', req: 1, v: dh }) +
+      F('laudo', 'Link do laudo cautelar', { w2: 1, ph: 'https://…', hint: 'Opcional.' }) +
+      '</div></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mSalvarNovo">Incluir veículo</button></div>');
+    $('#mSalvarNovo').onclick = ev => {
+      const root = $('#mf');
+      if (!valida(root)) return;
+      const d = coleta(root);
+      const placa = String(d.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (placa.length !== 7) { toast('Placa inválida (7 caracteres).', true); $('#mf [data-k=placa]').classList.add('erro'); return; }
+      const fid = d.fid;
+      d.valorVenda = parseInt(String(d.valorVenda).replace(/\D/g, '') || '0', 10) / 100;
+      delete d.fid;
+      busy(ev.currentTarget, async () => {
+        const nv = await srv('api_incluirVeiculo', fid, d);
+        if (adm() && S.sel !== '*') S.sel = fid;
+        fechaModal();
+        S.filtro = 'todos';
+        S.busca = '';
+        await carrega();
+        render();
+        toast('Veículo ' + nv.placa + ' incluído.');
+      });
+    };
+  }
+  function modalPlaca(v) {
+    abreModal(mHead('Solicitar boleto', esc(v.placa) + ' · ' + esc(v.modelo)) +
+      '<div class="m-body" id="mf"><div class="info az">Confira a placa do veículo e clique em <b>Próximo</b>. O formulário de solicitação abre em uma nova aba e a placa fica copiada para você colar lá.</div>' +
+      '<div class="grid">' + F('placa', 'Placa', { req: 1, mask: 'upper', v: v.placa, ph: 'ABC1D23' }) + '</div></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mProximo">Próximo</button></div>', true);
+    const inp = $('#mf [data-k=placa]');
+    inp.focus();
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') $('#mProximo').click(); });
+    $('#mProximo').onclick = ev => {
+      const placa = String(inp.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (placa.length !== 7) { inp.classList.add('erro'); toast('Placa inválida (7 caracteres).', true); return; }
+      // abre o formulário já no clique (senão o navegador bloqueia a nova aba) e copia a placa para colar lá
+      const a = document.createElement('a');
+      a.href = URL_FORM_BOLETO; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      try { navigator.clipboard.writeText(placa).catch(() => {}); } catch (e) { }
+      busy(ev.currentTarget, async () => {
+        const nv = await srv('api_iniciarBoleto', v.f, v.id, placa);
+        fechaModal();
+        atualiza(nv);
+        toast('Formulário aberto. Placa ' + placa + ' copiada: cole no formulário.');
+      });
+    };
+  }
+  function modalBoletoForm(v) {
+    const bs = S.d.bases.find(b => b.fileId === v.f) || {
+      dados: {}
+    };
+    const p = Object.assign({
+      lojaRazao: v.loja,
+      lojaProduto: S.d.produto,
+      hodometro: v.hodometro
+    }, bs.dados);
+    const g = gruposDados(p);
+    const assunto = "Solicitações de Boletos Novos Negócios | Placa: ".concat(v.placa, " - Loja: ").concat(v.loja, " - CNPJ: ").concat(fcnpj(v.cnpj));
+    abreModal("".concat(mHead('Solicitar boleto', "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\" id=\"mf\">\n    ").concat(bs.dados && bs.dados.lojaEmail ? '<div class="info">Os dados da loja foram preenchidos com o último envio. Confira e siga em frente.</div>' : '', "\n    <div class=\"sec\"><h3><i>1</i>Solicitação</h3><div class=\"grid\">\n      ").concat(F('destinatario', 'E-mail de destino', {
+      sel: S.d.destinatarios.boleto,
+      req: 1,
+      w2: 1
+    }), "\n      ").concat(F('valorBoleto', 'Valor do boleto', {
+      mask: 'money',
+      req: 1,
+      ph: 'R$ 0,00',
+      v: p.valorBoleto || mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))
+    }), "\n    </div>\n    <div class=\"f\" style=\"margin-top:12px\"><label>Print da oferta (anexo)</label><div class=\"file\"><input type=\"file\" id=\"fPrint\" accept=\"image/*,.pdf\"></div><div class=\"hint\">Opcional. Vai anexado ao e-mail.</div></div></div>\n    <div class=\"sec\"><h3><i>2</i>Veículo</h3><div class=\"resumo-ro\"><span class=\"plate\">").concat(esc(v.placa), "</span><b>").concat(esc(v.modelo), "</b><span>Valor venda</span><b>").concat(brl(v.valorVenda), "</b></div>").concat(g.veiculo, "</div>\n    <div class=\"sec\"><h3><i>3</i>Dados da loja<span class=\"loja-save\"><button type=\"button\" class=\"btn pri sm\" id=\"btnSalvaLoja\" hidden>Salvar alterações</button><label class=\"chk-loja\" title=\"Guarda os dados da loja para os próximos pedidos (boleto e documento)\"><input type=\"checkbox\" id=\"chkLoja\"><span>Salvar dados da loja</span></label></span></h3><div class=\"resumo-ro\"><b>").concat(esc(v.loja), "</b><span>CNPJ</span><b>").concat(esc(fcnpj(v.cnpj)), "</b></div>").concat(g.loja, "</div>\n    <div class=\"sec\"><h3><i>4</i>Dados do cliente</h3>").concat(g.cliente, "</div>\n    <div class=\"sec\"><h3><i>5</i>Envio do boleto</h3><div class=\"grid\">").concat(F('emailBoleto', 'E-mail para envio do boleto', {
+      type: 'email',
+      req: 1,
+      w2: 1,
+      v: p.emailBoleto || p.lojaEmail
+    }), "</div></div>\n  </div>\n  <div class=\"m-foot\"><span class=\"assunto\" title=\"").concat(esc(assunto), "\">Assunto: ").concat(esc(assunto), "</span><button class=\"btn\" data-act=\"fechar\">Cancelar</button><button class=\"btn pri\" id=\"mEnviar\">Enviar solicitação</button></div>"));
+    const chk = $('#chkLoja'), btnSl = $('#btnSalvaLoja'), salvo = !!(bs.dados && bs.dados.lojaEmail);
+    chk.checked = salvo;
+    const dadosLoja = () => {
+      const all = coleta($('#mf')), o = {};
+      Object.keys(all).forEach(k => { if (k.startsWith('loja')) o[k] = all[k]; });
+      return o;
+    };
+    const lojaCompleta = o => ['lojaRazao', 'lojaEmail', 'lojaProduto', 'lojaRua', 'lojaNumero', 'lojaBairro', 'lojaCep', 'lojaCidade', 'lojaUf'].every(k => String(o[k] || '').trim());
+    const mudou = () => {
+      const o = dadosLoja();
+      return Object.keys(o).some(k => String(o[k] || '') !== String((bs.dados || {})[k] || ''));
+    };
+    let lojaEmailAnt = p.lojaEmail || '';
+    $('#mf').addEventListener('input', e => {
+      if (e.target.dataset && e.target.dataset.k === 'lojaEmail') {
+        const eb = $('#mf [data-k=emailBoleto]');
+        if (eb && (!eb.value.trim() || eb.value.trim() === lojaEmailAnt)) eb.value = e.target.value.trim();
+        lojaEmailAnt = e.target.value.trim();
+      }
+      if (e.target.dataset && e.target.dataset.k && e.target.dataset.k.startsWith('loja')) btnSl.hidden = !(chk.checked && mudou());
+    });
+    chk.onchange = () => {
+      const o = dadosLoja();
+      if (chk.checked) {
+        if (!lojaCompleta(o)) { chk.checked = false; toast('Preencha todos os dados da loja para salvar.', true); return; }
+        srv('api_salvarDadosLoja', v.f, o).then(r => { bs.dados = r; btnSl.hidden = true; toast('Dados da loja salvos. Vão vir preenchidos nos próximos pedidos.'); }).catch(x => { chk.checked = false; toast(x.message, true); });
+      } else {
+        srv('api_salvarDadosLoja', v.f, null).then(() => { bs.dados = {}; btnSl.hidden = true; toast('Dados da loja não ficam mais salvos.'); }).catch(x => { chk.checked = true; toast(x.message, true); });
+      }
+    };
+    btnSl.onclick = () => {
+      const o = dadosLoja();
+      if (!lojaCompleta(o)) { toast('Preencha todos os dados da loja para salvar.', true); return; }
+      btnSl.disabled = true;
+      srv('api_salvarDadosLoja', v.f, o).then(r => { bs.dados = r; btnSl.hidden = true; toast('Dados da loja atualizados.'); }).catch(x => toast(x.message, true)).then(() => { btnSl.disabled = false; });
+    };
+    $('#mEnviar').onclick = ev => {
+      const root = $('#mf');
+      if (!valida(root)) return;
+      busy(ev.currentTarget, async () => {
+        const print = await lerArquivo($('#fPrint').files[0]);
+        const dados = coleta(root);
+        const nv = await srv('api_solicitarBoleto', v.f, v.id, dados, print, chk.checked);
+        bs.dados = chk.checked ? dadosLoja() : {};
+        fechaModal();
+        atualiza(nv);
+        toast('Solicitação enviada! Vou avisar quando o boleto chegar.');
+      });
+    };
+  }
+
+  /* ---------- 2) modal do botão Boleto depois da solicitação ---------- */
+  function modalBoletoStatus(v) {
+    const d = v.dados || {};
+    const est = v.boletoStatus;
+    const titulo = est === 'solicitado' ? 'Aguardando o boleto' : est === 'recebido' ? 'Boleto recebido' : 'Comprovante enviado';
+    const link = !!v.placaBoleto;
+    const msg0 = est === 'solicitado' ? 'A solicitação foi enviada. Verifico a caixa de e-mail a cada poucos minutos e, quando chegar a resposta com o PDF, o botão fica verde.' : est === 'recebido' ? 'O boleto chegou e já está salvo. <b>1.</b> Baixe e pague. <b>2.</b> Anexe o comprovante abaixo: ele vai como resposta a todos no mesmo e-mail do boleto, mantendo a conversa.' : "O comprovante foi enviado em ".concat(fdh(v.comprovanteEm)).concat(v.comprovanteNome ? " (".concat(esc(v.comprovanteNome), ")") : '', ". Agora é só enviar o documento por e-mail e preencher <b>Boleto enviado em</b> no card.");
+    const msg = est === 'solicitado' ? 'O formulário foi acionado' + (link ? ' para a placa <b>' + esc(v.placaBoleto) + '</b>' : '') + '. Quando o boleto chegar no seu e-mail, clique em <b>Boleto chegou</b>. O contador fica vermelho depois de 72 horas.' : msg0;
+    const linhas = link ? '<dt>Placa informada</dt><dd>' + esc(v.placaBoleto) + '</dd>' : '';
+    abreModal("".concat(mHead(titulo, "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\">\n    <div class=\"info ").concat(est === 'solicitado' ? 'az' : '', "\">").concat(msg, "</div>\n    <dl class=\"lista-kv\">\n      <dt>Solicitado em</dt><dd>").concat(fdh(v.boletoEnviadoEm), "</dd>\n      ").concat(linhas, "\n    </dl>\n    ").concat(est !== 'solicitado' ? "<div style=\"margin-bottom:14px\">".concat(dlChips(v), "</div>") : '', "\n    ").concat(est === 'recebido' ? "<div class=\"sec\"><h3>Comprovante de pagamento <em style=\"color:var(--perigo);font-style:normal\">*</em></h3><div class=\"file\" id=\"fCompBox\"><input type=\"file\" id=\"fComp\" accept=\"image/*,application/pdf\"></div><div class=\"hint\">PDF ou imagem, até 9 MB. Será enviado como resposta no e-mail do boleto.</div></div>" : '', "\n    ").concat(est === 'solicitado' ? '' : '', "\n  </div>\n  <div class=\"m-foot\">").concat(est === 'solicitado' ? '<button class="btn" data-act="desfazer" data-id="' + esc(v.k) + '" style="margin-right:auto" title="Clicou por engano? Volta para não solicitado">Desfazer pedido</button>' : '', "<button class=\"btn\" data-act=\"fechar\">Fechar</button>\n    ").concat(est === 'solicitado' ? '<button class="btn pri" id="mChegou">Boleto chegou</button>' : '', "\n    ").concat(est === 'recebido' ? '<button class="btn laranja" id="mComp">Enviar comprovante</button>' : '', "</div>"));
+    if (est === 'solicitado') {
+      $('#mChegou').onclick = ev => {
+        const btn = ev.currentTarget;
+        avisoBeneficiario(() => busy(btn, async () => {
+          const nv = await srv('api_boletoChegou', v.f, v.id);
+          fechaModal();
+          atualiza(nv);
+          toast('Boleto marcado como recebido.');
+        }));
+      };
+    }
+    if (est === 'recebido') {
+      $('#mComp').onclick = ev => {
+        const fc = $('#fComp').files[0];
+        $('#fCompBox').classList.toggle('erro', !fc);
+        if (!fc) return toast('Anexe o comprovante de pagamento.', true);
+        busy(ev.currentTarget, async () => {
+          const nv = await srv('api_enviarComprovante', v.f, v.id, await lerArquivo(fc));
+          fechaModal();
+          atualiza(nv);
+          toast('Comprovante enviado como resposta no e-mail do boleto.');
+        });
+      };
+    }
+  }
+
+  /* ---------- 3) modal: pedir o documento ---------- */
+  function modalDocto(v) {
+    const bs = S.d.bases.find(b => b.fileId === v.f) || { dados: {} };
+    const p = Object.assign({ lojaRazao: v.loja, lojaProduto: S.d.produto, hodometro: v.hodometro }, bs.dados, v.dados || {});
+    const semDados = !(v.dados && v.dados.chassi);
+    const g = gruposDados(p);
+    const assunto = 'Documentos | Novos Negócios - Boleto pago - solicitação de ATPV - Placa: ' + v.placa + ' - Loja: ' + v.loja + ' - CNPJ: ' + fcnpj(v.cnpj);
+    const jaTem = !!v.comprovanteNome;
+    abreModal("".concat(mHead('Pedir documento', "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\" id=\"mf\">\n    <div class=\"info\">").concat(semDados ? 'Preencha os dados do veículo, do cliente e da loja (as seções abaixo), o e-mail do cliente' + (jaTem ? '' : ' e anexe o comprovante de pagamento') + '.' : 'Os dados do boleto já estão preenchidos. Falta só o e-mail do cliente' + (jaTem ? '' : ' e o comprovante de pagamento') + '.', "</div>\n    <div class=\"sec\"><h3><i>1</i>O que falta</h3><div class=\"grid\">\n      ").concat(F('destinatarioDoc', 'E-mail de destino', {
+      sel: S.d.destinatarios.docs,
+      req: 1,
+      w2: 1
+    }), "\n      ").concat(F('cliEmail', 'E-mail do cliente', {
+      type: 'email',
+      req: 1,
+      v: p.cliEmail,
+      w2: 1
+    }), "</div>\n      <div class=\"f\" style=\"margin-top:12px\"><label>Comprovante de pagamento do boleto ").concat(jaTem ? '' : '<em>*</em>', "</label>\n      ").concat(jaTem ? "<div class=\"info\" style=\"margin:0 0 8px\">Já enviado: <b>".concat(esc(v.comprovanteNome), "</b>. Ele será anexado automaticamente. Se quiser, troque abaixo.</div>") : '', "\n      <div class=\"file\" id=\"fCompBox\"><input type=\"file\" id=\"fComp\" accept=\"image/*,application/pdf\"></div><div class=\"hint\">PDF ou imagem, até 9 MB.</div></div></div>\n    <details class=\"sec\"").concat(semDados ? ' open' : '', "><summary>Dados do veículo</summary>").concat(g.veiculo, "</details>\n    <details class=\"sec\"").concat(semDados ? ' open' : '', "><summary>Dados do cliente</summary>").concat(g.cliente, "</details>\n    <details class=\"sec\"").concat(semDados ? ' open' : '', "><summary>Dados da loja (envio do documento)</summary>").concat(g.loja, "</details>\n  </div>\n  <div class=\"m-foot\"><span class=\"assunto\" title=\"").concat(esc(assunto), "\">Assunto: ").concat(esc(assunto), "</span><button class=\"btn\" data-act=\"fechar\">Cancelar</button><button class=\"btn pri\" id=\"mEnviar\">Pedir documento</button></div>"));
+    $('#mEnviar').onclick = ev => {
+      const root = $('#mf');
+      const ok = valida(root);
+      const fc = $('#fComp').files[0];
+      const falta = !fc && !jaTem;
+      $('#fCompBox').classList.toggle('erro', falta);
+      if (falta) {
+        if (ok) toast('Anexe o comprovante de pagamento.', true);
+        return;
+      }
+      if (!ok) return;
+      busy(ev.currentTarget, async () => {
+        const nv = await srv('api_enviarDocto', v.f, v.id, coleta(root), await lerArquivo(fc));
+        fechaModal();
+        atualiza(nv);
+        toast('Documento solicitado! Quando postarem, cole o código de rastreio.');
+      });
+    };
+  }
+  function modalDoctoEnviado(v) {
+    const d = v.dados || {};
+    abreModal("".concat(mHead('Documento solicitado', "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\"><div class=\"info\">Tudo certo por aqui. Quando o documento for postado, cole o código de rastreio na linha do cartão e acompanhe pelo site dos Correios.</div>\n  <dl class=\"lista-kv\"><dt>Pedido em</dt><dd>").concat(fdh(v.docEnviadoEm), "</dd><dt>Enviado para</dt><dd>").concat(esc((d.destinatarioDoc || '').replace(/,/g, '; ')), "</dd><dt>Cliente</dt><dd>").concat(esc(d.cliNome || '—'), "</dd><dt>E-mail do cliente</dt><dd>").concat(esc(d.cliEmail || '—'), "</dd></dl></div>\n  <div class=\"m-foot\"><button class=\"btn pri\" data-act=\"fechar\">Fechar</button></div>"), true);
+  }
+
+  /* ---------- importar planilha (administrador) ---------- */
+  /* ---------- barra de progresso da importação ---------- */
+  function progHTML(pg) {
+    const pct = Math.floor(pg.pct || 0);
+    return '<div class="prog-box"><div class="prog-top"><b>' + (pg.fase === 'ler' ? 'Lendo a planilha…' : 'Importando a planilha…') + '</b><span class="prog-pct" id="progPct">' + pct + '%</span></div><div class="prog big"><i id="progBar" style="width:' + pct + '%"></i></div><div class="muted" id="progTxt"></div></div>';
+  }
+  function atualizaProg() {
+    const pg = S.prog;
+    if (!pg) return;
+    const bar = $('#progBar'), pc = $('#progPct'), tx = $('#progTxt');
+    if (!bar) return;
+    const n = Math.min(100, Math.floor(pg.pct));
+    bar.style.width = n + '%';
+    pc.textContent = n + '%';
+    const seg = Math.round((Date.now() - pg.inicio) / 1000);
+    if (pg.pct >= 100) tx.textContent = 'Concluído!';
+    else if (pg.fase === 'ler') tx.textContent = 'Separando as linhas por loja… ' + seg + 's';
+    else if (pg.aviso) tx.textContent = pg.aviso + ' ' + seg + 's';
+    else tx.textContent = (pg.feitas > 0 ? pg.feitas + ' de ' + pg.total + ' lojas prontas · ' : 'Enviando os dados… ') + seg + 's. Pode levar 1 ou 2 minutos, não feche esta tela.';
+  }
+  function iniciaProg() {
+    terminaProg();
+    S.prog = { fase: 'ler', feitas: 0, total: 1, lote: 1, pct: 0, inicio: Date.now() };
+    render();
+    atualizaProg();
+    S.prog.timer = setInterval(() => {
+      const pg = S.prog;
+      if (!pg || pg.pct >= 100) return;
+      if (pg.fase === 'ler') {
+        pg.pct += Math.max(0.15, (9 - pg.pct) * 0.06);
+        if (pg.pct > 9) pg.pct = 9;
+      } else {
+        const alvo = 10 + pg.feitas / pg.total * 90;
+        const teto = Math.min(98, 10 + Math.min(pg.total, pg.feitas + pg.lote) / pg.total * 90 - 1);
+        if (pg.pct < alvo) pg.pct += Math.max(0.6, (alvo - pg.pct) * 0.25);
+        else if (pg.pct < teto) pg.pct += Math.max(0.05, (teto - pg.pct) * 0.035);
+      }
+      atualizaProg();
+    }, 150);
+  }
+  function terminaProg() {
+    if (S.prog && S.prog.timer) clearInterval(S.prog.timer);
+    S.prog = null;
+  }
+  function viewImportar() {
+    const r = S.imp,
+      pg = S.prog;
+    const dz = "<div class=\"drop\" id=\"drop\">".concat(I.upload, "<p>Arraste a planilha de ofertas aceitas (.xlsx) aqui<br>ou escolha o arquivo</p><label class=\"btn pri\" style=\"cursor:pointer\">Escolher planilha<input type=\"file\" id=\"fPlan\" accept=\".xlsx,.xls\" hidden></label></div>");
+    let res = '';
+    if (pg) res = progHTML(pg);else if (r && r.erro) res = "<div class=\"info\" style=\"background:var(--perigo-bg);border-color:var(--perigo);color:var(--perigo);margin-top:16px\">".concat(esc(r.erro), "</div>");else if (r) res = "<div class=\"resumo\">\n      <div class=\"kpi\"><b>".concat(r.total, "</b><span>linhas na planilha</span></div>\n      <div class=\"kpi verde\"><b>").concat(r.ok.length, "</b><span>com loja e CNPJ (serão importadas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.semLoja, "</b><span>sem loja (ignoradas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.lojas, "</b><span>lojas</span></div></div>\n    <div class=\"scroll-x\"><table class=\"tb\"><thead><tr><th>Placa</th><th>Modelo</th><th>Valor venda</th><th>Dt oferta</th><th>Loja</th><th>CNPJ</th></tr></thead><tbody>\n    ").concat(r.ok.slice(0, 6).map(x => "<tr><td><span class=\"plate\">".concat(esc(x.placa), "</span></td><td>").concat(esc(x.modelo), "</td><td>").concat(brl(x.valorVenda), "</td><td>").concat(fdata(x.dtOferta), "</td><td>").concat(esc(x.loja), "</td><td>").concat(esc(fcnpj(x.cnpj)), "</td></tr>")).join(''), "\n    </tbody></table></div>").concat(r.ok.length > 6 ? "<p class=\"muted\">… e mais ".concat(r.ok.length - 6, " veículos.</p>") : '', "\n    <div style=\"display:flex;gap:10px;margin-top:16px\"><button class=\"btn\" data-act=\"limparImp\">Cancelar</button><button class=\"btn verde\" id=\"btnImp\" ").concat(r.ok.length ? '' : 'disabled', ">Importar ").concat(r.ok.length, " veículos</button></div>");
+    return viewMigrar() + "<div class=\"painel\"><h2>Importar planilha de ofertas</h2><div class=\"muted\">O sistema separa por loja (colunas Q e R) e atualiza a base de cada uma, sem perder o andamento dos veículos que já estão no painel. Lojas novas aparecem em “Lojas e acessos” para você cadastrar o e-mail.</div>".concat(pg ? '' : dz).concat(res, "</div>");
+  }
+  function viewMigrar() {
+    if (S.prog) return '';
+    return '<div class="painel" style="margin-bottom:16px"><h2>Trazer dados da versão antiga</h2><div class="muted">Use uma vez, na troca de sistema. Escolha o arquivo <b>.json</b> gerado pela função <b>exportarParaMigracao</b> no Google Script. Lojas, veículos e o andamento de cada um (coleta, boleto, envio, rastreio) vêm junto. Pode repetir sem duplicar.</div>' +
+      '<label class="btn" style="cursor:pointer;margin-top:14px;display:inline-flex">Escolher arquivo .json<input type="file" id="fMig" accept=".json,application/json" hidden></label>' +
+      (S.mig ? '<div class="info' + (S.mig.erro ? '' : ' az') + '" style="margin-top:14px">' + esc(S.mig.erro || S.mig.msg) + '</div>' : '') + '</div>';
+  }
+  async function migrar(file) {
+    S.mig = { msg: 'Lendo o arquivo…' }; render();
+    try {
+      const d = JSON.parse(await file.text());
+      if (!d || !Array.isArray(d.veiculos) || !Array.isArray(d.lojas)) throw new Error('Este arquivo não é o da migração (exportarParaMigracao).');
+      const tot = { lojas: 0, veiculos: 0, finalizados: 0, descartados: 0 }, LOTE = 400;
+      const r0 = await srvT(150000, 'api_migrar', { lojas: d.lojas, finalizados: d.finalizados || [], veiculos: [] });
+      tot.lojas += r0.lojas; tot.finalizados += r0.finalizados;
+      for (let i = 0; i < d.veiculos.length; i += LOTE) {
+        S.mig = { msg: 'Enviando veículos… ' + Math.min(i + LOTE, d.veiculos.length) + ' de ' + d.veiculos.length }; render();
+        const r = await srvT(150000, 'api_migrar', { lojas: [], finalizados: [], veiculos: d.veiculos.slice(i, i + LOTE) });
+        tot.veiculos += r.veiculos; tot.descartados += r.descartados;
+      }
+      await carrega();
+      S.mig = { msg: 'Pronto! ' + tot.lojas + ' lojas novas, ' + tot.veiculos + ' veículos com andamento, ' + tot.finalizados + ' finalizados antigos' + (tot.descartados ? ', ' + tot.descartados + ' linhas ignoradas (sem loja ou sem data).' : '.') };
+    } catch (e) { S.mig = { erro: 'A migração parou: ' + e.message + ' O que já entrou ficou salvo; pode escolher o arquivo de novo.' }; }
+    render();
+  }
+  document.addEventListener('change', e => { if (e.target.id === 'fMig' && e.target.files[0]) migrar(e.target.files[0]); });
+  function modalSenha() {
+    abreModal(mHead('Trocar senha', esc(S.d.role === 'admin' ? S.d.email : (S.d.bases[0] || {}).nome || '')) +
+      '<div class="m-body" id="mf"><div class="grid">' + F('s1', 'Nova senha', { type: 'password', req: 1, hint: 'Mínimo de 6 caracteres.' }) + F('s2', 'Repita a nova senha', { type: 'password', req: 1 }) + '</div></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mSenha">Salvar senha</button></div>', true);
+    $('#mSenha').onclick = ev => {
+      const d = coleta($('#mf'));
+      if (d.s1.length < 6) return toast('A senha precisa ter pelo menos 6 caracteres.', true);
+      if (d.s1 !== d.s2) return toast('As duas senhas não são iguais.', true);
+      busy(ev.currentTarget, async () => { await API.trocarSenha(d.s1); fechaModal(); toast('Senha trocada.'); });
+    };
+  }
+  function serialParaISO(x) {
+    if (x instanceof Date && !isNaN(x)) return x.toISOString().slice(0, 10);
+    if (typeof x === 'number') return new Date(Math.round((x - 25569) * 864e5)).toISOString().slice(0, 10);
+    const s = String(x || '').trim();
+    let m;
+    if (m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)) return "".concat(m[3], "-").concat(m[2], "-").concat(m[1]);
+    if (m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)) return "".concat(m[1], "-").concat(m[2], "-").concat(m[3]);
+    return '';
+  }
+  function numero(x) {
+    if (typeof x === 'number') return x;
+    let s = String(x || '').replace(/[R$\s]/g, '');
+    if (!s) return 0;
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+    return parseFloat(s) || 0;
+  }
+  async function lerPlanilha(file) {
+    S.imp = null;
+    iniciaProg();
+    await new Promise(r => setTimeout(r, 80));
+    try {
+      if (typeof XLSX === 'undefined') throw new Error('Biblioteca de leitura não carregou. Verifique a internet e recarregue.');
+      const wb = XLSX.read(await file.arrayBuffer(), {
+        type: 'array'
+      });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+        header: 1,
+        raw: true,
+        defval: ''
+      });
+      if (rows.length < 2) throw new Error('A planilha está vazia.');
+      const head = rows[0].map(h => String(h).trim().toLowerCase());
+      const col = (nomes, fb) => {
+        for (const n of nomes) {
+          const i = head.indexOf(n);
+          if (i >= 0) return i;
+        }
+        return fb;
+      };
+      const C = {
+        placa: col(['placa'], 0),
+        modelo: col(['modelo'], 1),
+        hodo: col(['hodometro', 'hodômetro'], 3),
+        laudo: col(['linklaudocautelar'], 6),
+        valor: col(['valorvenda'], 7),
+        loja: col(['nmgrupodncompra'], 16),
+        cnpj: col(['cnpjdn'], 17),
+        oferta: col(['data oferta'], 22),
+        compra: col(['datacompra'], 19)
+      };
+      const ok = [];
+      let semLoja = 0,
+        semData = 0,
+        total = 0;
+      rows.slice(1).forEach(r => {
+        if (!String(r[C.placa]).trim()) return;
+        total++;
+        const loja = String(r[C.loja] || '').trim(),
+          cnpj = String(r[C.cnpj] || '').replace(/\D/g, '').padStart(14, '0');
+        // 'DATA OFERTA'; se a coluna não trouxer uma data válida, usa a 'DataCompra'
+        const dtOferta = serialParaISO(r[C.oferta]) || serialParaISO(r[C.compra]);
+        if (!loja || cnpj === '00000000000000') {
+          semLoja++;
+          return;
+        }
+        if (!dtOferta) {
+          semData++;
+          return;
+        }
+        ok.push({
+          placa: String(r[C.placa]).trim().toUpperCase(),
+          modelo: String(r[C.modelo]).trim(),
+          valorVenda: numero(r[C.valor]),
+          hodometro: String(r[C.hodo] || ''),
+          laudo: String(r[C.laudo] || '').trim(),
+          dtOferta,
+          loja,
+          cnpj
+        });
+      });
+      S.imp = {
+        total,
+        ok,
+        semLoja: semLoja + semData,
+        semLoja_: semLoja,
+        semData,
+        lojas: new Set(ok.map(x => x.cnpj)).size
+      };
+    } catch (e) {
+      S.imp = {
+        erro: e.message
+      };
+    }
+    if (S.imp.erro || !S.imp.ok.length) {
+      terminaProg();
+      if (!S.imp.erro) S.imp.erro = S.imp.semData && !S.imp.semLoja_ ? 'Nenhuma linha tem uma data válida nas colunas "DATA OFERTA" ou "DataCompra" (' + S.imp.semData + ' linhas). Confira essas colunas na planilha.' : 'Nenhuma linha com loja e CNPJ foi encontrada nessa planilha.';
+      render();
+      return;
+    }
+    importar();
+  }
+  document.addEventListener('change', e => {
+    if (e.target.id === 'fPlan' && e.target.files[0]) lerPlanilha(e.target.files[0]);
+  });
+  function importar() {
+    // envia algumas lojas por vez
+    const porLoja = {};
+    S.imp.ok.forEach(x => (porLoja[x.cnpj] = porLoja[x.cnpj] || []).push(x));
+    const cnpjs = Object.keys(porLoja),
+      LOTE = 15,
+      tot = {
+        novos: 0,
+        atualizados: 0,
+        lojasNovas: 0
+      };
+    (async () => {
+      S.prog.fase = 'enviar';
+      S.prog.total = cnpjs.length;
+      S.prog.lote = LOTE;
+      S.prog.feitas = 0;
+      render();
+      atualizaProg();
+      try {
+        for (let i = 0; i < cnpjs.length; i += LOTE) {
+          const rows = [].concat(...cnpjs.slice(i, i + LOTE).map(c => porLoja[c]));
+          let r = null;
+          for (let t = 1; !r; t++) {
+            try {
+              r = await srvT(150000, 'api_importarLote', rows);
+            } catch (e) {
+              // tenta de novo (lote ocupado ou resposta lenta); o que já entrou não duplica
+              if (t >= 3) throw e;
+              S.prog.aviso = 'O servidor demorou; tentando de novo (' + t + ' de 2)…';
+              atualizaProg();
+              await new Promise(r2 => setTimeout(r2, 4000));
+            }
+          }
+          S.prog.aviso = '';
+          tot.novos += r.novos;
+          tot.atualizados += r.atualizados;
+          tot.lojasNovas += r.lojasNovas;
+          S.prog.feitas = Math.min(cnpjs.length, i + LOTE);
+          atualizaProg();
+        }
+        S.prog.feitas = cnpjs.length;
+        S.prog.pct = 100;
+        atualizaProg();
+        await new Promise(r => setTimeout(r, 700));
+        S.imp = null;
+        terminaProg();
+        await carrega();
+        S.view = 'lojas';
+        render();
+        toast("".concat(tot.novos, " novos, ").concat(tot.atualizados, " atualizados · ").concat(tot.lojasNovas, " lojas novas. Cadastre os e-mails das lojas."));
+      } catch (err) {
+        const feitas = S.prog ? S.prog.feitas : 0;
+        terminaProg();
+        S.imp = {
+          erro: 'A importação parou em ' + feitas + ' de ' + cnpjs.length + ' lojas: ' + String(err.message).replace(/[.\s]+$/, '') + '. O que já entrou ficou salvo e não duplica. Escolha a planilha de novo para continuar de onde parou.'
+        };
+        render();
+        toast('A importação parou. Veja a mensagem na tela.', true);
+      }
+    })();
+  }
+  document.addEventListener('dragover', e => {
+    const d = e.target.closest('#drop');
+    if (d) {
+      e.preventDefault();
+      d.classList.add('over');
+    }
+  });
+  document.addEventListener('dragleave', e => {
+    const d = e.target.closest('#drop');
+    if (d) d.classList.remove('over');
+  });
+  document.addEventListener('drop', e => {
+    const d = e.target.closest('#drop');
+    if (d) {
+      e.preventDefault();
+      d.classList.remove('over');
+      if (e.dataTransfer.files[0]) lerPlanilha(e.dataTransfer.files[0]);
+    }
+  });
+
+  /* ---------- lojas e acessos (administrador) ---------- */
+  function viewLojas() {
+    const ls = S.d.lojas,
+      pend = ls.filter(l => !l.liberado).length;
+    const acesso = l => {
+      const st = l.liberado ? '<span class="ac-ok">✓ Senha criada</span>' : '<span class="ac-no">Sem senha</span>';
+      const cod = l.codigo ? '<div class="ac-cod"><b class="mono">' + esc(l.codigo) + '</b><button class="ibtn" data-act="copiarCodigo" data-cnpj="' + l.cnpj + '" title="Copiar mensagem para a loja">' + I.copiar + '</button><small>vale até ' + fdata(new Date(new Date(l.codigoEm).getTime() + 7 * 864e5).toISOString()) + '</small></div>' : '';
+      return st + cod;
+    };
+    return '<div class="painel"><h2>Lojas e acessos</h2><div class="muted">O <b>usuário</b> de cada loja é o <b>CNPJ</b> (só números). Clique em <b>Gerar código</b> e passe o código para a loja: no primeiro acesso ela digita o CNPJ, o código e cria a própria senha. Esqueceu a senha? Gere um código novo (vale 7 dias).</div>' +
+      (pend ? '<div class="info az" style="margin-top:14px">' + pend + ' loja' + (pend > 1 ? 's' : '') + ' ainda sem senha.</div>' : '') +
+      (ls.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Loja</th><th>Usuário (CNPJ)</th><th>Veículos</th><th>Acesso</th><th></th></tr></thead><tbody>' +
+        ls.map(l => '<tr><td><strong>' + esc(l.nome) + '</strong></td><td><span class="mono">' + esc(l.cnpj) + '</span></td><td>' + l.total + '</td>' +
+          '<td style="min-width:230px">' + acesso(l) + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm" data-act="gerarCodigo" data-cnpj="' + l.cnpj + '">' + (l.codigo || l.liberado ? 'Novo código' : 'Gerar código') + '</button> ' +
+          '<button class="btn sm" data-act="verLoja" data-f="' + esc(l.fileId) + '">Ver veículos</button></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="vazio" style="margin-top:16px">Nenhuma loja ainda. Elas são criadas automaticamente ao importar a planilha.</div>') + '</div>';
+  }
+
+
+  /* ---------- e-mails de envio (administrador) ---------- */
+  const DEST_TIPOS = [['boleto', 'Solicitar boleto', 'Recebem o pedido de boleto de todas as lojas.'], ['docs', 'Pedir documento', 'Recebem o pedido de documento (ATPV) de todas as lojas.']];
+  function viewDestinos() {
+    const L = S.d.destinosListas || { boleto: [], docs: [] };
+    const caixa = t => {
+      const lista = L[t[0]] || [];
+      const itens = lista.length ? lista.map((d, i) => '<div class="dest-item' + (d.ativo ? '' : ' off') + '"><label class="dest-chk" title="' + (d.ativo ? 'Recebendo. Desmarque para pausar.' : 'Pausado. Marque para voltar a receber.') + '"><input type="checkbox" data-act="destTog" data-t="' + t[0] + '" data-i="' + i + '"' + (d.ativo ? ' checked' : '') + '><span class="dest-mail">' + esc(d.email) + '</span><span class="dest-tag">' + (d.ativo ? 'ativo' : 'pausado') + '</span></label><button class="ibtn dest-menos" title="Remover da lista" aria-label="Remover ' + esc(d.email) + '" data-act="destDel" data-t="' + t[0] + '" data-i="' + i + '">&minus;</button></div>').join('') : '<div class="muted" style="padding:10px 0">Nenhum e-mail cadastrado. Sem e-mails ativos, as lojas não conseguem enviar.</div>';
+      const nAt = lista.filter(d => d.ativo).length, aviso = lista.length && !nAt ? '<div class="dest-aviso">Todos estão pausados: as lojas não conseguem enviar até você ativar pelo menos um.</div>' : '';
+      return '<div class="painel dest-box"><h2>' + t[1] + '</h2><div class="muted">' + t[2] + '</div>' + aviso + '<div class="dest-lista">' + itens + '</div><div class="dest-novo"><input type="email" id="dn-' + t[0] + '" data-dnovo="' + t[0] + '" placeholder="novo.email@empresa.com" autocomplete="off"><button class="ibtn dest-mais" title="Adicionar" aria-label="Adicionar e-mail" data-act="destAdd" data-t="' + t[0] + '">+</button></div></div>';
+    };
+    return '<div class="dest-grid">' + DEST_TIPOS.map(caixa).join('') + '</div><div class="muted" style="margin-top:12px">As alterações valem na hora para todas as lojas. Só os e-mails marcados recebem, todos juntos no mesmo envio. Desmarque para pausar (férias, ausência) sem perder o cadastro.</div>';
+  }
+  function salvaDestinos(tipo, lista, msg) {
+    return srv('api_salvarDestinos', tipo, lista).then(r => {
+      S.d.destinosListas = r.listas;
+      S.d.destinatarios = r.opcoes;
+      render();
+      toast(msg);
+    }).catch(x => { toast(x.message, true); });
+  }
+
+  /* ---------- início ---------- */
+  function arranca(d) {
+    window.__ok = true;
+    d.veiculos.forEach(norm);
+    S.d = d;
+    S.view = d.role === 'admin' ? 'lojas' : 'veiculos';
+    if (d.role === 'admin' && !d.lojas.length) S.view = 'importar';
+    render();
+  }
+  const falhaInicial = msg => {
+    window.__ok = true;
+    $('#main').innerHTML = "<div class=\"vazio\"><h3>Não foi possível carregar</h3><p>".concat(esc(msg), "</p></div>");
+  };
+  window.addEventListener('error', e => {
+    if (!S.d) falhaInicial('Erro na tela: ' + e.message);
+  });
+  if (INICIAL && INICIAL.ok) {
+    try {
+      arranca(INICIAL.d);
+    } catch (e) {
+      falhaInicial('Erro ao montar a tela: ' + e.message);
+    }
+  } else if (INICIAL) falhaInicial(INICIAL.erro);else API.iniciar().then(d => { if (d) arranca(d); else window.__ok = true; }).catch(e => falhaInicial(e.message));
+
+})();
+</script>
+</body>
+</html>
