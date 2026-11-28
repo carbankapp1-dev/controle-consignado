@@ -320,6 +320,11 @@
   .stbtn.pgto:hover { background: #ffcc00; }
   .stbtn.vence { background: #d32f2f; border-color: #d32f2f; color: #fff; }
   .stbtn.vence:hover { background: #b71c1c; }
+  .stbtn.docwait { background: #fff; border: 2px solid #111741; color: #111741; font-size: 11.5px; line-height: 1.1; padding: 0 4px; animation: piscaDoc 1.3s ease-in-out infinite; }
+  .stbtn.docwait:hover { background: #111741; color: #fff; animation: none; }
+  @keyframes piscaDoc { 0%, 100% { background: #fff; color: #111741; } 50% { background: #111741; color: #fff; } }
+  .btn.verde-cheio { background: #1c9a55; border-color: #1c9a55; color: #fff; }
+  .btn.verde-cheio:hover { background: #157a43; }
   .btn.pisca { animation: piscaBtn 1.1s ease-in-out infinite; }
   @keyframes piscaBtn { 0%, 100% { box-shadow: 0 0 0 0 rgba(70,218,134,.75); background: #111741; } 50% { box-shadow: 0 0 0 7px rgba(70,218,134,0); background: #1c9a55; border-color: #1c9a55; } }
   .m-tit { margin: 0 0 6px; font-size: 18px; color: var(--azul); }
@@ -412,9 +417,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=16"></script>
-<script src="js/demo.js?v=16"></script>
-<script src="js/api.js?v=16"></script>
+<script src="js/config.js?v=17"></script>
+<script src="js/demo.js?v=17"></script>
+<script src="js/api.js?v=17"></script>
 </head>
 <body>
 <header class="topo">
@@ -633,7 +638,8 @@ window.addEventListener('error', function (e) {
 
   /* ---------- regras de negócio ---------- */
   function etapa(v) {
-    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago' || v.docStatus === 'enviado') return 'recebido';
+    if (v.boletoStatus === 'pago' || v.docStatus === 'enviado') return 'pago';
+    if (v.boletoStatus === 'recebido') return 'recebido';
     if (v.boletoStatus === 'solicitado') return 'solicitado';
     return 'novo';
   }
@@ -655,7 +661,7 @@ window.addEventListener('error', function (e) {
     const i = diasInfo(v);
     return i.n !== null && i.n <= 15;
   };
-  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Aguardando pgto', v => etapa(v) === 'recebido'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
+  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Aguardando pgto', v => etapa(v) === 'recebido'], ['pago', 'Aguardando documento', v => etapa(v) === 'pago'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
   // filtro de GCM (administrador e coordenador)
   const lojasGcm = () => S.d.lojas.filter(l => !S.gcm || l.gcm === S.gcm);
   const listaGcms = () => [...new Set(S.d.lojas.map(l => l.gcm).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -747,15 +753,19 @@ window.addEventListener('error', function (e) {
   }
   // dias até o vencimento do boleto (null = sem data)
   const diasVenc = v => v.boletoVencimento ? diff(String(v.boletoVencimento).slice(0, 10), S.d.hoje) : null;
+  // data e hora gravadas (ISO) mostradas no horário de Brasília
+  const fLocal = iso => { const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }); };
   function contVenc(v) {
-    if (v.boletoStatus !== 'recebido' && v.boletoStatus !== 'pago') return '';
+    if (etapa(v) === 'pago') return v.docEnviadoEm ? '<span class="cont">pago ' + fLocal(v.docEnviadoEm).slice(0, 5) + '</span>' : '';
+    if (v.boletoStatus !== 'recebido') return '';
     if (!v.boletoVencimento) return '<span class="cont atraso" title="Clique no botão para informar">informe o vencimento</span>';
     const n = diasVenc(v);
     return '<span class="cont' + (n <= 0 ? ' atraso' : '') + '">' + (n < 0 ? 'venceu ' : 'vence ') + fdata(v.boletoVencimento).slice(0, 5) + '</span>';
   }
   function btnBoleto(v) {
     const s = "data-act=\"boleto\" data-id=\"".concat(esc(v.k), "\"");
-    if (v.boletoStatus === 'pago' || v.boletoStatus === 'recebido') {
+    if (etapa(v) === 'pago') return '<button class="stbtn ok" ' + s + ' title="Boleto pago. Clique para ver ou desfazer">' + I.check + 'Boleto pago</button>';
+    if (v.boletoStatus === 'recebido') {
       const n = diasVenc(v);
       if (n !== null && n <= 0) return '<button class="stbtn vence" ' + s + ' title="Clique para ver ou corrigir a data de vencimento">' + (n === 0 ? 'Vence hoje' : 'Boleto vencido') + '</button>';
       return '<button class="stbtn pgto" ' + s + ' title="Boleto chegou. Clique para ver ou corrigir a data de vencimento">Aguardando pgto</button>';
@@ -766,8 +776,8 @@ window.addEventListener('error', function (e) {
   }
   function btnDocto(v) {
     const s = "data-act=\"finalizar\" data-id=\"" + esc(v.k) + "\"";
-    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') return "<button class=\"stbtn fin\" " + s + " title=\"Documento recebido: remove este veículo da lista\">Documento recebido</button>";
-    return "<button class=\"stbtn fin\" disabled title=\"Disponível depois que o boleto chegar\">" + (V2 ? '<svg class="cad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' : '') + "Documento recebido</button>";
+    if (etapa(v) === 'pago') return "<button class=\"stbtn docwait\" " + s + " title=\"Clique quando o documento chegar: finaliza e tira o veículo da lista\">Aguardando documento</button>";
+    return "<button class=\"stbtn fin\" disabled title=\"Disponível depois que o boleto for pago\">" + (V2 ? '<svg class="cad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' : '') + "Documento recebido</button>";
   }
   // dias úteis (seg a sex) desde a data informada até hoje
   function diasUteisDesde(iso) {
@@ -802,7 +812,7 @@ window.addEventListener('error', function (e) {
     const di = diasInfo(v),
       id = esc(v.k);
     const dls = v.boletoArquivos.map(f => "<button class=\"dl\" data-act=\"baixar\" data-id=\"".concat(id, "\" data-f=\"").concat(esc(f.id), "\" title=\"Baixar boleto\">").concat(I.baixar).concat(esc(f.name), "</button>")).join('');
-    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\">").concat(fdata(v.dtColeta), "</div>\n    <div class=\"c\" data-l=\"Data Boleto\">" + fdata(v.prazo) + "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : contVenc(v), "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat('', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat("\n</article>");
+    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\">").concat(fdata(v.dtColeta), "</div>\n    <div class=\"c\" data-l=\"Data Boleto\">" + fdata(v.prazo) + "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : contVenc(v), "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat(etapa(v) === 'pago' && v.docEnviadoEm ? contador(v.docEnviadoEm, 12, 'documento') : '', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat("\n</article>");
   }
 
   /* ---------- ações na lista ---------- */
@@ -906,7 +916,8 @@ window.addEventListener('error', function (e) {
     },
     boleto(el) {
       const v = getV(el.dataset.id);
-      if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') return modalVencimento(v, false);
+      if (etapa(v) === 'pago') return modalPago(v);
+      if (v.boletoStatus === 'recebido') return modalVencimento(v, false);
       v.boletoStatus ? modalBoletoStatus(v) : modalPlaca(v);
     },
     docto(el) {
@@ -931,7 +942,7 @@ window.addEventListener('error', function (e) {
     finalizar(el) {
       const v = getV(el.dataset.id);
       if (!v) return;
-      if (!confirm('Finalizar o processo de ' + v.placa + ' (' + v.modelo + ')?\n\nA linha será apagada da lista e do banco de dados. Isso não pode ser desfeito.')) return;
+      if (!confirm('O documento de ' + v.placa + ' (' + v.modelo + ') chegou?\n\nO processo será finalizado e o veículo sai da lista. Isso não pode ser desfeito.')) return;
       el.disabled = true;
       srv('api_finalizar', v.f, v.id).then(() => {
         S.d.veiculos = S.d.veiculos.filter(x => x.k !== v.k);
@@ -1305,7 +1316,17 @@ window.addEventListener('error', function (e) {
     abreModal(mHead(chegou ? 'Boleto chegou' : 'Vencimento do boleto', esc(v.placa) + ' · ' + esc(v.modelo)) +
       '<div class="m-body" id="mf"><div class="info az">Informe a <b>data de vencimento</b> que está no boleto. O botão fica <b>amarelo (Aguardando pgto)</b> e, no dia do vencimento, fica <b>vermelho</b>.</div>' +
       '<div class="grid">' + F('venc', 'Data de vencimento do boleto', { type: 'date', req: 1, v: String(v.boletoVencimento || '').slice(0, 10) }) + '</div></div>' +
-      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mVenc">' + (chegou ? 'Salvar e marcar como chegou' : 'Salvar') + '</button></div>', true);
+      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button>' + (chegou ? '' : '<button class="btn" id="mVenc">Salvar data</button><span style="flex:1"></span><button class="btn verde-cheio" id="mPago">✓ Boleto pago</button>') +
+      (chegou ? '<button class="btn pri" id="mVenc">Salvar e marcar como chegou</button>' : '') + '</div>', true);
+    if (!chegou) $('#mPago').onclick = ev => {
+      if (!confirm('Confirmar que o boleto de ' + v.placa + ' foi pago?\n\nO veículo passa para "Aguardando documento" e começa a contagem de 12 dias úteis.')) return;
+      busy(ev.currentTarget, async () => {
+        const nv = await srv('api_boletoPago', v.f, v.id);
+        fechaModal();
+        atualiza(nv);
+        toast('Boleto pago! Agora é aguardar o documento (12 dias úteis).');
+      });
+    };
     $('#mVenc').onclick = ev => {
       const venc = $('#mf [data-k=venc]').value;
       if (!/^20\d{2}-\d{2}-\d{2}$/.test(venc)) { $('#mf [data-k=venc]').classList.add('erro'); return toast('Informe a data de vencimento do boleto.', true); }
@@ -1315,6 +1336,17 @@ window.addEventListener('error', function (e) {
         atualiza(nv);
         toast(chegou ? 'Boleto chegou. Vencimento em ' + fdata(venc) + '.' : 'Vencimento atualizado: ' + fdata(venc) + '.');
       });
+    };
+  }
+  // boleto pago: mostra a data e permite desfazer
+  function modalPago(v) {
+    abreModal(mHead('Boleto pago', esc(v.placa) + ' · ' + esc(v.modelo)) +
+      '<div class="m-body"><div class="info az">Boleto pago' + (v.docEnviadoEm ? ' em <b>' + fLocal(v.docEnviadoEm) + '</b>' : '') + '. Agora é aguardar o documento: o prazo é de <b>12 dias úteis</b>. Quando ele chegar, clique em <b>Aguardando documento</b> para finalizar.</div>' +
+      (v.boletoVencimento ? '<dl class="lista-kv"><dt>Vencimento do boleto</dt><dd>' + fdata(v.boletoVencimento) + '</dd></dl>' : '') + '</div>' +
+      '<div class="m-foot"><button class="btn" id="mDesfPago" title="Clicou por engano? Volta para Aguardando pgto">Desfazer pagamento</button><span style="flex:1"></span><button class="btn pri" data-act="fechar">Fechar</button></div>', true);
+    $('#mDesfPago').onclick = ev => {
+      if (!confirm('Voltar ' + v.placa + ' para "Aguardando pgto"?')) return;
+      busy(ev.currentTarget, async () => { const nv = await srv('api_desfazerPago', v.f, v.id); fechaModal(); atualiza(nv); toast('Pagamento desfeito.'); });
     };
   }
   function abrirFormulario(placa) {

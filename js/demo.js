@@ -29,8 +29,8 @@ window.DEMO = (function () {
   novo('11222333000181', 'PQR0S12', 'VIRTUS EXCLUSIVE', 109000, diasAtras(110), {
     boletoStatus: 'recebido', boletoEnviadoEm: new Date(Date.now() - 200 * 3600e3).toISOString(), placaBoleto: 'PQR0S12' });
   novo('11222333000181', 'TUV3W45', 'SAVEIRO CROSS', 98000, diasAtras(60), {
-    boletoStatus: 'recebido', boletoEnviadoEm: new Date(Date.now() - 400 * 3600e3).toISOString(), placaBoleto: 'TUV3W45', boletoVencimento: hojeISO(),
-    docStatus: 'enviado', docEnviadoEm: new Date(Date.now() - 5 * 864e5).toISOString(), rastreio: 'AA123456789BR' });
+    boletoStatus: 'pago', boletoEnviadoEm: new Date(Date.now() - 400 * 3600e3).toISOString(), placaBoleto: 'TUV3W45', boletoVencimento: hojeISO(),
+    docStatus: '', docEnviadoEm: new Date(Date.now() - 20 * 864e5).toISOString(), rastreio: 'AA123456789BR' });
   novo('44555666000172', 'XYZ6A78', 'GOL 1.0', 52000, diasAtras(5));
   const fim = {};
 
@@ -101,6 +101,8 @@ window.DEMO = (function () {
     },
     api_iniciarBoleto(f, id, placa) { const v = pega(f, id); Object.assign(v, { boletoStatus: 'solicitado', boletoEnviadoEm: new Date().toISOString(), placaBoleto: placaN(placa) }); return v; },
     api_boletoChegou(f, id, venc) { const v = pega(f, id); if (v.boletoStatus === 'solicitado') v.boletoStatus = 'recebido'; v.boletoVencimento = venc; return v; },
+    api_boletoPago(f, id) { const v = pega(f, id); v.boletoStatus = 'pago'; v.docEnviadoEm = v.docEnviadoEm || new Date().toISOString(); return v; },
+    api_desfazerPago(f, id) { const v = pega(f, id); v.boletoStatus = 'recebido'; v.docEnviadoEm = ''; v.docStatus = ''; return v; },
     api_salvarVencimento(f, id, venc) { const v = pega(f, id); v.boletoVencimento = venc; return v; },
     api_desfazerBoleto(f, id) { const v = pega(f, id); if (v.docStatus) throw new Error('Apague primeiro a data de envio do boleto.'); Object.assign(v, { boletoStatus: '', boletoEnviadoEm: '', placaBoleto: '' }); return v; },
     api_salvarEnviadoEm(f, id, data) { const v = pega(f, id); v.docEnviadoEm = data ? new Date(data + 'T12:00:00-03:00').toISOString() : ''; v.docStatus = data ? 'enviado' : ''; return v; },
