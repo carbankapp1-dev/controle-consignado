@@ -413,6 +413,7 @@
   @media (min-width: 1181px) {
     body.v2 .cab > div, body.v2 .row > .c { text-align: center; }
     body.v2 .row > .c-modelo, body.v2 .row > .c-modelo strong, body.v2 .row > .c-modelo small { text-align: left; }
+    body.v2 .row > .c-modelo { padding-left: 16px; }   /* afasta o modelo da placa (~2 caracteres) */
     body.v2 .c input.vv { text-align: center; padding-right: 24px; }
     /* botões de Boleto e Documento: largura fixa e centralizados sob o título */
     body.v2 .row > .c[data-l="Boleto"] .stbtn, body.v2 .row > .c[data-l="Documento"] .stbtn { width: 120px; margin-left: auto; margin-right: auto; }
@@ -435,9 +436,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=22"></script>
-<script src="js/demo.js?v=22"></script>
-<script src="js/api.js?v=22"></script>
+<script src="js/config.js?v=23"></script>
+<script src="js/demo.js?v=23"></script>
+<script src="js/api.js?v=23"></script>
 </head>
 <body>
 <header class="topo">
