@@ -320,9 +320,10 @@
   .stbtn.pgto:hover { background: #ffcc00; }
   .stbtn.vence { background: #d32f2f; border-color: #d32f2f; color: #fff; }
   .stbtn.vence:hover { background: #b71c1c; }
-  .stbtn.docwait { background: #fff; border: 2px solid #111741; color: #111741; font-size: 11.5px; line-height: 1.1; padding: 0 4px; animation: piscaDoc 1.3s ease-in-out infinite; }
+  .stbtn.docwait { background: #fff; border: 2px solid #111741; color: #111741; font-size: 11.5px; line-height: 1.1; padding: 0 4px; animation: pulsoDoc 2.2s ease-out infinite; }
   .stbtn.docwait:hover { background: #111741; color: #fff; animation: none; }
-  @keyframes piscaDoc { 0%, 100% { background: #fff; color: #111741; } 50% { background: #111741; color: #fff; } }
+  /* pulso discreto: só um contorno que se expande e some */
+  @keyframes pulsoDoc { 0% { box-shadow: 0 0 0 0 rgba(17,23,65,.30); } 70% { box-shadow: 0 0 0 7px rgba(17,23,65,0); } 100% { box-shadow: 0 0 0 0 rgba(17,23,65,0); } }
   .btn.verde-cheio { background: #1c9a55; border-color: #1c9a55; color: #fff; }
   .btn.verde-cheio:hover { background: #157a43; }
   .btn.pisca { animation: piscaBtn 1.1s ease-in-out infinite; }
@@ -393,6 +394,7 @@
   body.v2 .dias.warn { background: #ffe6a6; color: #7a4b00; }
   body.v2 .dias.danger { background: #fde0de; color: #a3160c; }
   body.v2 .dias.vencido { background: #d32f2f; color: #fff; }
+  body.v2 .dias.muted { background: #eef0f4; color: #a3abb8; }
   /* status do boleto com cor que tem significado */
   body.v2 .stbtn { height: 40px; font-size: 13.5px; }
   body.v2 .stbtn.idle { background: #111741; border-color: #111741; color: #fff; }
@@ -433,9 +435,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=21"></script>
-<script src="js/demo.js?v=21"></script>
-<script src="js/api.js?v=21"></script>
+<script src="js/config.js?v=22"></script>
+<script src="js/demo.js?v=22"></script>
+<script src="js/api.js?v=22"></script>
 </head>
 <body>
 <header class="topo">
@@ -666,7 +668,8 @@ window.addEventListener('error', function (e) {
       cls: 'muted'
     };
     const n = diff(v.prazo, S.d.hoje);
-    const cls = n < 0 ? 'danger vencido' : n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
+    // boleto já pago: o prazo deixa de importar, fica cinza claro
+    const cls = etapa(v) === 'pago' ? 'muted' : n < 0 ? 'danger vencido' : n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
     return {
       n,
       txt: String(n),
@@ -675,7 +678,7 @@ window.addEventListener('error', function (e) {
   }
   const urgente = v => {
     const i = diasInfo(v);
-    return i.n !== null && i.n <= 15;
+    return i.n !== null && i.n <= 15 && etapa(v) !== 'pago';
   };
   const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Aguardando pgto', v => etapa(v) === 'recebido'], ['pago', 'Aguardando documento', v => etapa(v) === 'pago'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
   // filtro de GCM (administrador e coordenador)
