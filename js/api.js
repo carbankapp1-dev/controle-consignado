@@ -24,7 +24,7 @@ window.API = (function () {
   // linha do banco -> formato que a tela usa
   function pub(r) {
     return {
-      f: r.cnpj, id: r.id, ordem: Number(r.ordem) || 0, placa: r.placa, modelo: r.modelo || '',
+      f: r.cnpj, id: r.id, ordem: Number(r.ordem) || 0, placa: r.placa, modelo: r.modelo || '', chassi: r.chassi || '',
       valorVenda: Number(r.valor_venda) || 0, hodometro: r.hodometro || '', laudo: r.laudo || '',
       dtOferta: r.dt_oferta || '', loja: r.loja || '', cnpj: r.cnpj, dtColeta: r.dt_coleta || '', prazo: r.prazo || '',
       boletoStatus: r.boleto_status || '', boletoEnviadoEm: r.boleto_enviado_em || '', placaBoleto: r.placa_boleto || '',
@@ -32,7 +32,8 @@ window.API = (function () {
       boletoArquivos: [], lembretes: 0, lembretePausado: '', dados: {}
     };
   }
-  const loja = l => ({ cnpj: l.cnpj, nome: l.nome, fileId: l.cnpj, total: Number(l.total) || 0, liberado: !!l.tem_senha, codigo: l.codigo || '', codigoEm: l.codigo_em || '' });
+  const loja = l => ({ cnpj: l.cnpj, nome: l.nome, fileId: l.cnpj, total: Number(l.total) || 0, liberado: !!l.tem_senha, codigo: l.codigo || '', codigoEm: l.codigo_em || '',
+    nDn: l.n_dn || '', gcm: l.gcm || '', coordenador: l.coordenador || '' });
 
   async function veiculosDe(cnpjs) {
     const out = [];
@@ -52,21 +53,25 @@ window.API = (function () {
       opts = opts || {};
       const quem = await rpc('cc_quem_sou');
       const lojas = (await rpc('cc_lojas')).map(loja);
-      const out = { email: quem.email, role: quem.role, hoje: hoje(), prazoDias: 88, produto: 'Consignado',
+      const out = { email: quem.email, role: quem.role, nome: quem.nome || '', hoje: hoje(), prazoDias: 88, produto: 'Consignado',
         destinatarios: {}, veiculos: [], bases: [], lojas: [] };
       let sel;
-      if (quem.role === 'admin') {
+      if (quem.role !== 'loja') {   // administrador e coordenador escolhem a loja
         out.lojas = lojas;
         sel = opts.fileId === '*' ? lojas : opts.fileId ? lojas.filter(l => l.cnpj === opts.fileId) : [];
       } else sel = lojas;
-      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, dados: {} }));
-      if (sel.length) out.veiculos = await veiculosDe(quem.role === 'admin' && opts.fileId === '*' ? null : sel.map(l => l.cnpj));
+      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, dados: {} }));
+      if (sel.length) out.veiculos = await veiculosDe(quem.role !== 'loja' && opts.fileId === '*' ? null : sel.map(l => l.cnpj));
       return out;
     },
     api_importarLote: rows => rpc('cc_importar_lote', { p_rows: rows }),
     api_gerarCodigo: cnpj => rpc('cc_gerar_codigo', { p_cnpj: cnpj }),
     api_migrar: dados => rpc('cc_migrar', { p: dados }),
     api_salvarColeta: async (f, id, dt) => pub(await rpc('cc_salvar_coleta', { p_cnpj: f, p_id: id, p_dt: dt || '' })),
+    api_salvarPrazo: async (f, id, dt) => pub(await rpc('cc_salvar_prazo', { p_cnpj: f, p_id: id, p_dt: dt || '' })),
+    api_coordListar: async () => (await rpc('cc_coordenadores_listar')).map(c => ({ nome: c.nome, email: c.email || '', lojas: Number(c.lojas) || 0, temSenha: !!c.tem_senha, codigo: c.codigo || '', codigoEm: c.codigo_em || '' })),
+    api_coordEmail: (nome, email) => rpc('cc_coord_salvar_email', { p_nome: nome, p_email: email }),
+    api_coordCodigo: nome => rpc('cc_coord_gerar_codigo', { p_nome: nome }),
     api_salvarValor: async (f, id, valor) => pub(await rpc('cc_salvar_valor', { p_cnpj: f, p_id: id, p_valor: valor })),
     api_incluirVeiculo: async (f, dados) => pub(await rpc('cc_incluir_veiculo', { p_cnpj: f, p_dados: dados })),
     api_iniciarBoleto: async (f, id, placa) => pub(await rpc('cc_iniciar_boleto', { p_cnpj: f, p_id: id, p_placa: placa })),
@@ -103,8 +108,8 @@ window.API = (function () {
   }
 
   function telaLogin(aviso, ok, usuario) {
-    tela('<h2>Entrar</h2><p>Lojas: usuário é o <b>CNPJ</b> (só números).</p>' + avisoHTML(aviso, ok) +
-      '<form id="fLogin">' + campo('lgUser', 'Usuário (CNPJ)', 'text', 'inputmode="numeric" autocomplete="username" value="' + escH(usuario || '') + '"') +
+    tela('<h2>Entrar</h2><p>Lojas: usuário é o <b>CNPJ</b> (só números). Coordenadores: o <b>e-mail</b>.</p>' + avisoHTML(aviso, ok) +
+      '<form id="fLogin">' + campo('lgUser', 'Usuário', 'text', 'autocomplete="username" value="' + escH(usuario || '') + '"') +
       campo('lgSenha', 'Senha', 'password', 'autocomplete="current-password"') +
       '<button class="btn pri" id="lgBtn" type="submit">Entrar</button></form>' +
       '<button class="lnk2" id="lgPrim" type="button">Primeiro acesso / esqueci a senha</button>');
@@ -125,8 +130,9 @@ window.API = (function () {
   }
 
   function telaPrimeiro(aviso, usuario) {
-    tela('<h2>Criar senha</h2><p>Use o <b>código de 6 números</b> que o administrador passou para a sua loja.</p>' + avisoHTML(aviso) +
-      '<form id="fPrim">' + campo('pcUser', 'CNPJ (só números)', 'text', 'inputmode="numeric" autocomplete="username" value="' + escH(soNum(usuario)) + '"') +
+    const u0 = String(usuario || '').includes('@') ? String(usuario).trim() : soNum(usuario);
+    tela('<h2>Criar senha</h2><p>Use o <b>código de 6 números</b> que o administrador passou para você.</p>' + avisoHTML(aviso) +
+      '<form id="fPrim">' + campo('pcUser', 'Usuário (CNPJ da loja ou e-mail do coordenador)', 'text', 'autocomplete="username" value="' + escH(u0) + '"') +
       campo('pcCod', 'Código de acesso', 'text', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"') +
       campo('pcS1', 'Nova senha (mínimo 6 caracteres)', 'password', 'autocomplete="new-password"') +
       campo('pcS2', 'Repita a nova senha', 'password', 'autocomplete="new-password"') +
@@ -136,8 +142,9 @@ window.API = (function () {
     document.getElementById('fPrim').onsubmit = ev => {
       ev.preventDefault();
       const v = id => document.getElementById(id).value;
-      const cnpj = soNum(v('pcUser')), cod = soNum(v('pcCod')), s1 = v('pcS1'), s2 = v('pcS2');
-      if (cnpj.length !== 14) return telaPrimeiro('Digite o CNPJ com 14 números.', cnpj);
+      const bruto = v('pcUser').trim(), ehEmail = bruto.includes('@');
+      const cnpj = ehEmail ? bruto.toLowerCase() : soNum(bruto), cod = soNum(v('pcCod')), s1 = v('pcS1'), s2 = v('pcS2');
+      if (!ehEmail && cnpj.length !== 14) return telaPrimeiro('Digite o CNPJ com 14 números (ou o e-mail, se for coordenador).', cnpj);
       if (cod.length !== 6) return telaPrimeiro('O código tem 6 números.', cnpj);
       if (s1.length < 6) return telaPrimeiro('A senha precisa ter pelo menos 6 caracteres.', cnpj);
       if (s1 !== s2) return telaPrimeiro('As duas senhas não são iguais.', cnpj);
@@ -146,8 +153,8 @@ window.API = (function () {
         try { r = await rpc('cc_criar_senha', { p_cnpj: cnpj, p_codigo: cod, p_senha: s1 }); }
         catch (e) { return telaPrimeiro(e.message, cnpj); }
         if (!r || !r.ok) return telaPrimeiro((r && r.erro) || 'Não foi possível criar a senha.', cnpj);
-        const { error } = await sb.auth.signInWithPassword({ email: cnpj + '@' + DOMINIO, password: s1 });
-        if (error) return telaLogin('Senha criada! Agora entre com o CNPJ e a senha nova.', true, cnpj);
+        const { error } = await sb.auth.signInWithPassword({ email: r.email || (cnpj + '@' + DOMINIO), password: s1 });
+        if (error) return telaLogin('Senha criada! Agora entre com o seu usuário e a senha nova.', true, cnpj);
         location.reload();
       });
     };

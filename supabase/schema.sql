@@ -53,6 +53,24 @@ create table if not exists finalizados (
   primary key (cnpj, id)
 );
 
+-- ---------- colunas da planilha nova (nov/2026) ----------
+alter table lojas    add column if not exists n_dn        text not null default '';   -- Nº DN
+alter table lojas    add column if not exists gcm         text not null default '';
+alter table lojas    add column if not exists coordenador text not null default '';   -- nome, em MAIÚSCULAS
+alter table veiculos add column if not exists chassi      text not null default '';
+
+-- coordenadores: veem e alteram só as lojas em que o nome deles está na coluna COORDENADOR
+create table if not exists cc_coordenadores (
+  nome              text primary key,            -- igual à planilha, em MAIÚSCULAS
+  email             text not null default '',    -- usuário de login
+  acesso_codigo     text not null default '',
+  acesso_codigo_em  timestamptz,
+  acesso_tentativas int not null default 0,
+  senha_criada_em   timestamptz
+);
+create unique index if not exists cc_coord_email_idx on cc_coordenadores (lower(email)) where email <> '';
+alter table cc_coordenadores enable row level security;
+
 -- ---------- quem está usando ----------
 -- a loja entra com o CNPJ; por dentro vira o e-mail 12345678000199@lojas.consignado.app (nunca recebe mensagens)
 create or replace function cc_dominio() returns text language sql immutable as $$ select 'lojas.consignado.app' $$;
@@ -67,9 +85,23 @@ language sql stable security definer set search_path = public as $$
   select cc_meu_email() <> '' and exists (select 1 from cc_admins where lower(email) = cc_meu_email())
 $$;
 
+-- nome do coordenador logado ('' se não for coordenador)
+create or replace function cc_coord_nome() returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce((select nome from cc_coordenadores where cc_meu_email() <> '' and lower(email) = cc_meu_email()), '')
+$$;
+
+-- administrador ou coordenador (quem gerencia lojas)
+create or replace function cc_eh_gestor() returns boolean
+language sql stable security definer set search_path = public as $$
+  select cc_eh_admin() or cc_coord_nome() <> ''
+$$;
+
 create or replace function cc_pode(p_cnpj text) returns boolean
 language sql stable security definer set search_path = public as $$
-  select cc_eh_admin() or (cc_meu_email() <> '' and cc_meu_email() = p_cnpj || '@' || cc_dominio())
+  select cc_eh_admin()
+      or (cc_meu_email() <> '' and cc_meu_email() = p_cnpj || '@' || cc_dominio())
+      or (cc_coord_nome() <> '' and exists (select 1 from lojas where cnpj = p_cnpj and coordenador = cc_coord_nome()))
 $$;
 
 -- ---------- segurança: leitura direta só do que é seu; gravação só pelas funções ----------
@@ -102,17 +134,22 @@ end $$;
 -- ---------- tela inicial ----------
 create or replace function cc_quem_sou() returns json
 language sql stable security definer set search_path = public as $$
-  select json_build_object('email', cc_meu_email(), 'role', case when cc_eh_admin() then 'admin' else 'loja' end)
+  select json_build_object('email', cc_meu_email(),
+    'role', case when cc_eh_admin() then 'admin' when cc_coord_nome() <> '' then 'coord' else 'loja' end,
+    'nome', cc_coord_nome())
 $$;
 
--- lojas visíveis para quem está usando (o código de acesso só aparece para o administrador)
+-- lojas visíveis para quem está usando (o código de acesso só aparece para administrador/coordenador)
+drop function if exists cc_lojas();
 create or replace function cc_lojas()
-returns table (cnpj text, nome text, total bigint, tem_senha boolean, codigo text, codigo_em timestamptz)
+returns table (cnpj text, nome text, total bigint, tem_senha boolean, codigo text, codigo_em timestamptz,
+               n_dn text, gcm text, coordenador text)
 language sql stable security definer set search_path = public as $$
   select l.cnpj, l.nome, (select count(*) from veiculos v where v.cnpj = l.cnpj),
          l.senha_criada_em is not null,
-         case when cc_eh_admin() then l.acesso_codigo else '' end,
-         case when cc_eh_admin() then l.acesso_codigo_em end
+         case when cc_eh_gestor() then l.acesso_codigo else '' end,
+         case when cc_eh_gestor() then l.acesso_codigo_em end,
+         l.n_dn, l.gcm, l.coordenador
   from lojas l
   where cc_pode(l.cnpj)
   order by l.nome
@@ -124,86 +161,174 @@ create or replace function cc_gerar_codigo(p_cnpj text) returns json
 language plpgsql security definer set search_path = public, extensions as $$
 declare c text := lpad((floor(random() * 1000000))::int::text, 6, '0'); l lojas;
 begin
-  perform cc_exige_admin();
+  if not cc_eh_gestor() or not cc_pode(p_cnpj) then raise exception 'Somente o administrador ou o coordenador da loja pode fazer isso.'; end if;
   update lojas set acesso_codigo = c, acesso_codigo_em = now(), acesso_tentativas = 0
   where cnpj = p_cnpj returning * into l;
   if not found then raise exception 'Loja não encontrada.'; end if;
   return json_build_object('cnpj', l.cnpj, 'codigo', c, 'codigo_em', l.acesso_codigo_em);
 end $$;
 
--- a loja (ainda sem entrar) cria a senha com CNPJ + código. Pode ser chamada sem login.
-create or replace function cc_criar_senha(p_cnpj text, p_codigo text, p_senha text) returns json
+-- cria (ou troca a senha de) um usuário de login direto no Supabase Auth
+create or replace function cc_grava_usuario(v_email text, p_senha text, p_meta jsonb) returns void
 language plpgsql security definer set search_path = public, extensions as $$
-declare
-  v_cnpj text := regexp_replace(coalesce(p_cnpj, ''), '\D', '', 'g');
-  v_email text; l lojas; uid uuid;
+declare uid uuid;
 begin
-  if length(v_cnpj) <> 14 then raise exception 'Informe o CNPJ com 14 números.'; end if;
-  if length(coalesce(p_senha, '')) < 6 then raise exception 'A senha precisa ter pelo menos 6 caracteres.'; end if;
-  select * into l from lojas where cnpj = v_cnpj for update;
-  if not found or l.acesso_codigo = '' then
-    raise exception 'Não há código de acesso para este CNPJ. Peça um código ao administrador.';
-  end if;
-  if l.acesso_tentativas >= 5 then
-    raise exception 'Código bloqueado por excesso de tentativas. Peça um código novo ao administrador.';
-  end if;
-  if l.acesso_codigo_em < now() - interval '7 days' then
-    raise exception 'Este código venceu (vale 7 dias). Peça um código novo ao administrador.';
-  end if;
-  if l.acesso_codigo <> trim(coalesce(p_codigo, '')) then
-    update lojas set acesso_tentativas = acesso_tentativas + 1 where cnpj = v_cnpj;
-    return json_build_object('ok', false, 'erro', 'Código incorreto. Confira com o administrador.');
-  end if;
-
-  v_email := v_cnpj || '@' || cc_dominio();
-  select id into uid from auth.users where email = v_email;
+  select id into uid from auth.users where lower(email) = lower(v_email);
   if uid is null then
     uid := gen_random_uuid();
     insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
       confirmation_token, recovery_token, email_change_token_new, email_change,
       email_change_token_current, reauthentication_token, phone_change, phone_change_token)
-    values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', v_email,
+    values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', lower(v_email),
       crypt(p_senha, gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('cnpj', v_cnpj), now(), now(), '', '', '', '', '', '', '', '');
+      coalesce(p_meta, '{}'::jsonb), now(), now(), '', '', '', '', '', '', '', '');
     insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
     values (gen_random_uuid(), uid, uid::text,
-      jsonb_build_object('sub', uid::text, 'email', v_email, 'email_verified', true), 'email', now(), now(), now());
+      jsonb_build_object('sub', uid::text, 'email', lower(v_email), 'email_verified', true), 'email', now(), now(), now());
   else
     update auth.users set encrypted_password = crypt(p_senha, gen_salt('bf')), updated_at = now() where id = uid;
   end if;
+end $$;
 
+-- confere código de acesso (comum a lojas e coordenadores); devolve '' se ok ou a mensagem de erro
+create or replace function cc_confere_codigo(p_cod text, p_cod_em timestamptz, p_tent int, p_digitado text) returns text
+language sql immutable as $$
+  select case
+    when coalesce(p_cod, '') = '' then 'SEM'
+    when p_tent >= 5 then 'Código bloqueado por excesso de tentativas. Peça um código novo ao administrador.'
+    when p_cod_em < now() - interval '7 days' then 'Este código venceu (vale 7 dias). Peça um código novo ao administrador.'
+    when p_cod <> trim(coalesce(p_digitado, '')) then 'ERRADO'
+    else '' end
+$$;
+
+-- cria a senha com usuário (CNPJ da loja ou e-mail do coordenador) + código. Pode ser chamada sem login.
+create or replace function cc_criar_senha(p_cnpj text, p_codigo text, p_senha text) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_user text := lower(trim(coalesce(p_cnpj, '')));
+  v_cnpj text := regexp_replace(coalesce(p_cnpj, ''), '\D', '', 'g');
+  v_email text; l lojas; c cc_coordenadores; r text;
+begin
+  if length(coalesce(p_senha, '')) < 6 then raise exception 'A senha precisa ter pelo menos 6 caracteres.'; end if;
+
+  -- coordenador: usuário é o e-mail
+  if position('@' in v_user) > 0 then
+    if exists (select 1 from cc_admins where lower(email) = v_user) then
+      raise exception 'Este e-mail é de administrador: a senha dele é trocada no próprio site, em Trocar senha.';
+    end if;
+    select * into c from cc_coordenadores where lower(email) = v_user for update;
+    r := case when found then cc_confere_codigo(c.acesso_codigo, c.acesso_codigo_em, c.acesso_tentativas, p_codigo) else 'SEM' end;
+    if r = 'SEM' then raise exception 'Não há código de acesso para este usuário. Peça um código ao administrador.'; end if;
+    if r = 'ERRADO' then
+      update cc_coordenadores set acesso_tentativas = acesso_tentativas + 1 where nome = c.nome;
+      return json_build_object('ok', false, 'erro', 'Código incorreto. Confira com o administrador.');
+    end if;
+    if r <> '' then raise exception '%', r; end if;
+    perform cc_grava_usuario(v_user, p_senha, jsonb_build_object('coordenador', c.nome));
+    update cc_coordenadores set acesso_codigo = '', acesso_codigo_em = null, acesso_tentativas = 0, senha_criada_em = now()
+    where nome = c.nome;
+    return json_build_object('ok', true, 'email', v_user);
+  end if;
+
+  -- loja: usuário é o CNPJ
+  if length(v_cnpj) <> 14 then raise exception 'Informe o CNPJ com 14 números.'; end if;
+  select * into l from lojas where cnpj = v_cnpj for update;
+  r := case when found then cc_confere_codigo(l.acesso_codigo, l.acesso_codigo_em, l.acesso_tentativas, p_codigo) else 'SEM' end;
+  if r = 'SEM' then raise exception 'Não há código de acesso para este CNPJ. Peça um código ao administrador.'; end if;
+  if r = 'ERRADO' then
+    update lojas set acesso_tentativas = acesso_tentativas + 1 where cnpj = v_cnpj;
+    return json_build_object('ok', false, 'erro', 'Código incorreto. Confira com o administrador.');
+  end if;
+  if r <> '' then raise exception '%', r; end if;
+
+  v_email := v_cnpj || '@' || cc_dominio();
+  perform cc_grava_usuario(v_email, p_senha, jsonb_build_object('cnpj', v_cnpj));
   update lojas set acesso_codigo = '', acesso_codigo_em = null, acesso_tentativas = 0, senha_criada_em = now()
   where cnpj = v_cnpj;
-  return json_build_object('ok', true);
+  return json_build_object('ok', true, 'email', v_email);
+end $$;
+
+-- ---------- administrador: coordenadores ----------
+-- lista os coordenadores que aparecem nas lojas (coluna COORDENADOR) e os já cadastrados
+create or replace function cc_coordenadores_listar()
+returns table (nome text, email text, lojas bigint, tem_senha boolean, codigo text, codigo_em timestamptz)
+language sql stable security definer set search_path = public as $$
+  with nomes as (
+    select coordenador as nome from lojas where coordenador <> ''
+    union select nome from cc_coordenadores)
+  select n.nome, coalesce(c.email, ''), (select count(*) from lojas l where l.coordenador = n.nome),
+         c.senha_criada_em is not null, coalesce(c.acesso_codigo, ''), c.acesso_codigo_em
+  from nomes n left join cc_coordenadores c on c.nome = n.nome
+  where cc_eh_admin()
+  order by n.nome
+$$;
+
+create or replace function cc_coord_salvar_email(p_nome text, p_email text) returns json
+language plpgsql security definer set search_path = public as $$
+declare v_nome text := upper(trim(coalesce(p_nome, ''))); v_email text := lower(trim(coalesce(p_email, '')));
+begin
+  perform cc_exige_admin();
+  if v_nome = '' then raise exception 'Informe o nome do coordenador.'; end if;
+  if v_email <> '' and v_email !~ '^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$' then raise exception 'E-mail inválido.'; end if;
+  if v_email <> '' and exists (select 1 from cc_admins where lower(email) = v_email) then
+    raise exception 'Este e-mail já é de administrador.';
+  end if;
+  if v_email <> '' and exists (select 1 from cc_coordenadores where lower(email) = v_email and nome <> v_nome) then
+    raise exception 'Este e-mail já está em outro coordenador.';
+  end if;
+  insert into cc_coordenadores (nome, email) values (v_nome, v_email)
+  on conflict (nome) do update set email = excluded.email;
+  return json_build_object('nome', v_nome, 'email', v_email);
+end $$;
+
+create or replace function cc_coord_gerar_codigo(p_nome text) returns json
+language plpgsql security definer set search_path = public as $$
+declare c text := lpad((floor(random() * 1000000))::int::text, 6, '0'); r cc_coordenadores;
+begin
+  perform cc_exige_admin();
+  update cc_coordenadores set acesso_codigo = c, acesso_codigo_em = now(), acesso_tentativas = 0
+  where nome = upper(trim(p_nome)) and email <> '' returning * into r;
+  if not found then raise exception 'Cadastre antes o e-mail (usuário) do coordenador.'; end if;
+  return json_build_object('nome', r.nome, 'codigo', c, 'codigo_em', r.acesso_codigo_em);
 end $$;
 
 -- ---------- administrador: importação da planilha ----------
--- rows: [{placa, modelo, valorVenda, hodometro, laudo, dtOferta:'AAAA-MM-DD', loja, cnpj}]
+-- rows: [{placa, modelo, chassi, valorBoleto, dtOferta, dtLiberacao, dtBoleto (AAAA-MM-DD), loja, cnpj, nDn, coordenador, gcm}]
+-- A planilha manda: veículo que já existe tem modelo, chassi, loja, Valor do Boleto, Data da Liberação e Data Boleto
+-- atualizados pelo que vier preenchido nela (o andamento — boleto, envio, rastreio — nunca é tocado).
+-- Dados da loja (nome, Nº DN, GCM, coordenador) também ficam iguais à planilha.
 create or replace function cc_importar_lote(p_rows jsonb) returns json
 language plpgsql security definer set search_path = public as $$
 declare
-  r record; v_placa text; v_cnpj text; v_nome text; v_dt date; v_id text; ex veiculos;
+  r record; v_placa text; v_cnpj text; v_nome text; v_id text; ex veiculos; v_lib date; v_bol date; v_nova boolean;
+  iso text := '^\d{4}-\d{2}-\d{2}$';
   n_novos int := 0; n_atual int := 0; n_lojas int := 0; n_desc int := 0; n_ign int := 0;
 begin
   perform cc_exige_admin();
   for r in select * from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb))
-      as x(placa text, modelo text, "valorVenda" numeric, hodometro text, laudo text, "dtOferta" text, loja text, cnpj text)
+      as x(placa text, modelo text, chassi text, "valorBoleto" numeric, "dtOferta" text, "dtLiberacao" text, "dtBoleto" text,
+           loja text, cnpj text, "nDn" text, coordenador text, gcm text)
   loop
-    v_placa := upper(trim(coalesce(r.placa, '')));
+    v_placa := upper(regexp_replace(coalesce(r.placa, ''), '[^A-Za-z0-9]', '', 'g'));
     v_cnpj  := lpad(regexp_replace(coalesce(r.cnpj, ''), '\D', '', 'g'), 14, '0');
     v_nome  := trim(coalesce(r.loja, ''));
     if v_placa = '' or v_nome = '' or length(v_cnpj) <> 14 or v_cnpj = '00000000000000'
-       or coalesce(r."dtOferta", '') !~ '^\d{4}-\d{2}-\d{2}$' then
+       or coalesce(r."dtOferta", '') !~ iso then
       n_desc := n_desc + 1; continue;
     end if;
-    v_dt := r."dtOferta"::date;
-    v_id := v_placa || '_' || r."dtOferta";
+    v_id  := v_placa || '_' || r."dtOferta";
+    v_lib := case when r."dtLiberacao" ~ iso then r."dtLiberacao"::date end;
+    v_bol := case when r."dtBoleto" ~ iso then r."dtBoleto"::date end;
 
-    if not exists (select 1 from lojas where cnpj = v_cnpj) then
-      insert into lojas (cnpj, nome) values (v_cnpj, v_nome);
-      n_lojas := n_lojas + 1;
-    end if;
+    insert into lojas (cnpj, nome, n_dn, gcm, coordenador)
+    values (v_cnpj, v_nome, trim(coalesce(r."nDn", '')), upper(trim(coalesce(r.gcm, ''))), upper(trim(coalesce(r.coordenador, ''))))
+    on conflict (cnpj) do update set nome = excluded.nome,
+      n_dn = case when excluded.n_dn <> '' then excluded.n_dn else lojas.n_dn end,
+      gcm = case when excluded.gcm <> '' then excluded.gcm else lojas.gcm end,
+      coordenador = case when excluded.coordenador <> '' then excluded.coordenador else lojas.coordenador end
+    returning (xmax = 0) into v_nova;   -- true quando a loja é nova
+    if v_nova then n_lojas := n_lojas + 1; end if;
 
     if exists (select 1 from finalizados where cnpj = v_cnpj and id = v_id) then
       n_ign := n_ign + 1; continue;
@@ -211,18 +336,20 @@ begin
 
     select * into ex from veiculos where cnpj = v_cnpj and id = v_id;
     if found then
-      -- valor de venda não é sobrescrito: pode ter sido editado à mão
-      if ex.modelo is distinct from trim(coalesce(r.modelo, '')) or ex.hodometro is distinct from coalesce(r.hodometro, '')
-         or ex.laudo is distinct from trim(coalesce(r.laudo, '')) or ex.loja is distinct from v_nome then
-        update veiculos set modelo = trim(coalesce(r.modelo, '')), hodometro = coalesce(r.hodometro, ''),
-          laudo = trim(coalesce(r.laudo, '')), loja = v_nome, atualizado_em = now()
+      if ex.modelo is distinct from trim(coalesce(r.modelo, '')) or ex.chassi is distinct from upper(trim(coalesce(r.chassi, '')))
+         or ex.loja is distinct from v_nome
+         or (coalesce(r."valorBoleto", 0) > 0 and ex.valor_venda <> round(r."valorBoleto", 2))
+         or (v_lib is not null and ex.dt_coleta is distinct from v_lib) or (v_bol is not null and ex.prazo is distinct from v_bol) then
+        update veiculos set modelo = trim(coalesce(r.modelo, '')), chassi = upper(trim(coalesce(r.chassi, ''))), loja = v_nome,
+          valor_venda = case when coalesce(r."valorBoleto", 0) > 0 then round(r."valorBoleto", 2) else valor_venda end,
+          dt_coleta = coalesce(v_lib, dt_coleta), prazo = coalesce(v_bol, prazo), atualizado_em = now()
         where cnpj = v_cnpj and id = v_id;
         n_atual := n_atual + 1;
       end if;
     else
-      insert into veiculos (cnpj, id, placa, modelo, valor_venda, hodometro, laudo, dt_oferta, loja)
-      values (v_cnpj, v_id, v_placa, trim(coalesce(r.modelo, '')), round(coalesce(r."valorVenda", 0), 2),
-              coalesce(r.hodometro, ''), trim(coalesce(r.laudo, '')), v_dt, v_nome);
+      insert into veiculos (cnpj, id, placa, modelo, chassi, valor_venda, dt_oferta, loja, dt_coleta, prazo)
+      values (v_cnpj, v_id, v_placa, trim(coalesce(r.modelo, '')), upper(trim(coalesce(r.chassi, ''))),
+              round(coalesce(r."valorBoleto", 0), 2), r."dtOferta"::date, v_nome, v_lib, v_bol);
       n_novos := n_novos + 1;
     end if;
   end loop;
@@ -282,17 +409,22 @@ begin
 end $$;
 
 -- ---------- ações nos veículos (administrador e lojas) ----------
+-- Data da Liberação (coluna dt_coleta) e Data Boleto (coluna prazo): vêm da planilha e podem ser corrigidas à mão
 create or replace function cc_salvar_coleta(p_cnpj text, p_id text, p_dt text) returns veiculos
 language plpgsql security definer set search_path = public as $$
 declare v veiculos := cc_pega(p_cnpj, p_id);
 begin
-  if coalesce(p_dt, '') ~ '^\d{4}-\d{2}-\d{2}$' then
-    update veiculos set dt_coleta = p_dt::date, prazo = p_dt::date + 88, atualizado_em = now()
-    where cnpj = p_cnpj and id = p_id returning * into v;
-  else
-    update veiculos set dt_coleta = null, prazo = null, atualizado_em = now()
-    where cnpj = p_cnpj and id = p_id returning * into v;
-  end if;
+  update veiculos set dt_coleta = case when coalesce(p_dt, '') ~ '^\d{4}-\d{2}-\d{2}$' then p_dt::date end, atualizado_em = now()
+  where cnpj = p_cnpj and id = p_id returning * into v;
+  return v;
+end $$;
+
+create or replace function cc_salvar_prazo(p_cnpj text, p_id text, p_dt text) returns veiculos
+language plpgsql security definer set search_path = public as $$
+declare v veiculos := cc_pega(p_cnpj, p_id);
+begin
+  update veiculos set prazo = case when coalesce(p_dt, '') ~ '^\d{4}-\d{2}-\d{2}$' then p_dt::date end, atualizado_em = now()
+  where cnpj = p_cnpj and id = p_id returning * into v;
   return v;
 end $$;
 
@@ -300,7 +432,7 @@ create or replace function cc_salvar_valor(p_cnpj text, p_id text, p_valor numer
 language plpgsql security definer set search_path = public as $$
 declare v veiculos := cc_pega(p_cnpj, p_id); n numeric := round(coalesce(p_valor, 0), 2);
 begin
-  if not (n > 0) or n > 99999999 then raise exception 'Informe um valor de venda válido.'; end if;
+  if not (n > 0) or n > 99999999 then raise exception 'Informe um valor do boleto válido.'; end if;
   update veiculos set valor_venda = n, atualizado_em = now() where cnpj = p_cnpj and id = p_id returning * into v;
   return v;
 end $$;
@@ -313,22 +445,23 @@ declare
   v_modelo text := trim(coalesce(p_dados ->> 'modelo', ''));
   v_valor numeric := round(coalesce(nullif(p_dados ->> 'valorVenda', '')::numeric, 0), 2);
   v_dt text := coalesce(p_dados ->> 'dtOferta', '');
-  v_laudo text := trim(coalesce(p_dados ->> 'laudo', ''));
+  v_lib text := coalesce(p_dados ->> 'dtLiberacao', '');
+  v_bol text := coalesce(p_dados ->> 'dtBoleto', '');
+  iso text := '^\d{4}-\d{2}-\d{2}$';
 begin
   if not cc_pode(p_cnpj) then raise exception 'Sem acesso a esta loja.'; end if;
   select * into l from lojas where cnpj = p_cnpj;
   if not found then raise exception 'Loja não encontrada.'; end if;
   if length(v_placa) <> 7 then raise exception 'Placa inválida (7 caracteres).'; end if;
   if v_modelo = '' then raise exception 'Informe o modelo.'; end if;
-  if not (v_valor > 0) or v_valor > 99999999 then raise exception 'Informe um valor de venda válido.'; end if;
-  if v_dt !~ '^\d{4}-\d{2}-\d{2}$' then raise exception 'Informe a data da oferta.'; end if;
-  if v_laudo <> '' and v_laudo !~* '^https?://' then raise exception 'O link do laudo deve começar com http:// ou https://'; end if;
+  if not (v_valor > 0) or v_valor > 99999999 then raise exception 'Informe um valor do boleto válido.'; end if;
+  if v_dt !~ iso then raise exception 'Informe a data da oferta.'; end if;
   if exists (select 1 from veiculos where cnpj = p_cnpj and id = v_placa || '_' || v_dt) then
     raise exception 'Este veículo (placa e data da oferta) já está na lista.';
   end if;
-  insert into veiculos (cnpj, id, placa, modelo, valor_venda, hodometro, laudo, dt_oferta, loja)
-  values (p_cnpj, v_placa || '_' || v_dt, v_placa, v_modelo, v_valor, trim(coalesce(p_dados ->> 'hodometro', '')),
-          v_laudo, v_dt::date, l.nome)
+  insert into veiculos (cnpj, id, placa, modelo, chassi, valor_venda, dt_oferta, loja, dt_coleta, prazo)
+  values (p_cnpj, v_placa || '_' || v_dt, v_placa, v_modelo, upper(trim(coalesce(p_dados ->> 'chassi', ''))), v_valor,
+          v_dt::date, l.nome, case when v_lib ~ iso then v_lib::date end, case when v_bol ~ iso then v_bol::date end)
   returning * into v;
   -- se já tinha sido finalizado/excluído antes, volta a valer
   delete from finalizados where cnpj = p_cnpj and id = v.id;
@@ -423,6 +556,8 @@ revoke all on all tables in schema public from anon, authenticated;
 grant select on veiculos to authenticated;
 grant execute on function cc_criar_senha(text, text, text) to anon, authenticated;
 grant execute on function cc_quem_sou(), cc_lojas(), cc_gerar_codigo(text), cc_importar_lote(jsonb), cc_migrar(jsonb),
+  cc_coordenadores_listar(), cc_coord_salvar_email(text, text), cc_coord_gerar_codigo(text),
+  cc_coord_nome(), cc_eh_gestor(), cc_salvar_prazo(text, text, text),
   cc_salvar_coleta(text, text, text), cc_salvar_valor(text, text, numeric), cc_incluir_veiculo(text, jsonb),
   cc_iniciar_boleto(text, text, text), cc_boleto_chegou(text, text), cc_desfazer_boleto(text, text),
   cc_salvar_enviado_em(text, text, text), cc_salvar_rastreio(text, text, text), cc_finalizar(text, text),

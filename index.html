@@ -75,7 +75,7 @@
   /* ---------- lista (cada veículo = 1 cartão) ---------- */
   .cab, .row {
     display: grid; align-items: center; column-gap: 10px;
-    grid-template-columns: 104px minmax(170px,1.7fr) 124px 46px 88px 128px 96px 58px 112px 112px 34px;
+    grid-template-columns: 104px minmax(170px,1.7fr) 124px 88px 128px 128px 58px 112px 112px 34px;
   }
   .cab { padding: 0 16px 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cinza-500); }
   .card { background: var(--branco); border: 1.5px solid #c5cad8; border-radius: var(--raio); box-shadow: 0 2px 6px rgba(17,23,65,.10); margin-bottom: 12px; overflow: hidden; }
@@ -318,6 +318,14 @@
   .login .f input { width: 100%; }
   .login .lnk2 { background: none; border: 0; color: var(--azul); text-decoration: underline; font-size: 13px; margin-top: 14px; }
   .login .btn { width: 100%; justify-content: center; }
+  .c-modelo small.chassi { font-family: ui-monospace, Consolas, monospace; letter-spacing: .03em; cursor: pointer; color: var(--cinza-500); }
+  .c-modelo small.chassi:hover { color: var(--azul); text-decoration: underline; }
+  .info-loja { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: center; background: var(--branco); border: 1px solid var(--cinza-200); border-left: 4px solid var(--verde); border-radius: var(--raio); padding: 12px 16px; margin-bottom: 14px; box-shadow: var(--sombra); }
+  .info-loja .il-nome { font-weight: 800; font-size: 15px; }
+  .info-loja span { font-size: 13px; color: var(--cinza-500); }
+  .info-loja span b { color: var(--azul); font-weight: 700; }
+  .coord-box { margin-top: 16px; }
+  .coord-box input[type=email] { min-width: 230px; }
   .topo-dir { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
   .login { max-width: 420px; margin: 48px auto; background: var(--branco); border: 1px solid var(--cinza-100); border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 6px 24px rgba(17,23,65,.08); }
   .login h2 { margin: 0 0 8px; color: #111741; }
@@ -328,9 +336,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=3"></script>
-<script src="js/demo.js?v=3"></script>
-<script src="js/api.js?v=3"></script>
+<script src="js/config.js?v=4"></script>
+<script src="js/demo.js?v=4"></script>
+<script src="js/api.js?v=4"></script>
 </head>
 <body>
 <header class="topo">
@@ -578,7 +586,8 @@ window.addEventListener('error', function (e) {
       pb = b.prazo || '9999';
     return pa.localeCompare(pb) || a.placa.localeCompare(b.placa);
   }
-  const adm = () => S.d.role === 'admin';
+  const adm = () => S.d.role === 'admin' || S.d.role === 'coord';   // telas de gestão
+  const admTotal = () => S.d.role === 'admin';                        // só o administrador (importar, coordenadores)
   async function carrega() {
     const d = await srv('api_listar', adm() && S.sel ? {
       fileId: S.sel
@@ -591,10 +600,10 @@ window.addEventListener('error', function (e) {
   function render() {
     const d = S.d;
     let chip;
-    if (adm()) chip = '<span class="chip-loja">Administrador</span>';else if (d.bases.length === 1) chip = "<span class=\"chip-loja\">".concat(esc(d.bases[0].nome), "<small>").concat(esc(fcnpj(d.bases[0].cnpj)), "</small></span>");else chip = "<span class=\"chip-loja\">".concat(d.bases.length, " lojas<small>").concat(esc(d.email), "</small></span>");
+    if (admTotal()) chip = '<span class="chip-loja">Administrador</span>';else if (adm()) chip = '<span class="chip-loja">Coordenador<small>' + esc(d.nome || d.email) + '</small></span>';else if (d.bases.length === 1) chip = "<span class=\"chip-loja\">".concat(esc(d.bases[0].nome), "<small>").concat(esc(fcnpj(d.bases[0].cnpj)), "</small></span>");else chip = "<span class=\"chip-loja\">".concat(d.bases.length, " lojas<small>").concat(esc(d.email), "</small></span>");
     $('#topoDir').innerHTML = chip + (API.demo ? '<span class="demo-tag">demonstração</span>' : '') + '<button class="sair" data-act="trocarSenha" title="Trocar a sua senha">Trocar senha</button><button class="sair" data-act="sair" title="Sair desta conta">Sair</button>';
-    $('#tabs').innerHTML = adm() ? [['veiculos', 'Veículos'], ['importar', 'Importar planilha'], ['lojas', 'Lojas e acessos']].map(([k, t]) => "<button class=\"tab ".concat(S.view === k ? 'on' : '', "\" data-act=\"aba\" data-k=\"").concat(k, "\">").concat(t, "</button>")).join('') : '';
-    if (S.view === 'importar' && adm()) $('#main').innerHTML = viewImportar();else if (S.view === 'lojas' && adm()) $('#main').innerHTML = viewLojas();else if (S.view === 'destinos' && adm()) $('#main').innerHTML = viewDestinos();else $('#main').innerHTML = viewVeiculos();
+    $('#tabs').innerHTML = adm() ? [['veiculos', 'Veículos'], ['importar', 'Importar planilha'], ['lojas', 'Lojas e acessos']].filter(([k]) => k !== 'importar' || admTotal()).map(([k, t]) => "<button class=\"tab ".concat(S.view === k ? 'on' : '', "\" data-act=\"aba\" data-k=\"").concat(k, "\">").concat(t, "</button>")).join('') : '';
+    if (S.view === 'importar' && admTotal()) $('#main').innerHTML = viewImportar();else if (S.view === 'lojas' && adm()) $('#main').innerHTML = viewLojas();else if (S.view === 'destinos' && adm()) $('#main').innerHTML = viewDestinos();else $('#main').innerHTML = viewVeiculos();
   }
   function viewVeiculos() {
     const d = S.d;
@@ -607,7 +616,7 @@ window.addEventListener('error', function (e) {
     const lista = b.filter(FILTROS.find(f => f[0] === S.filtro)[2]).sort(ordenar);
     const chips = FILTROS.map(([k, t, fn]) => "<button class=\"fchip ".concat(S.filtro === k ? 'on' : '', "\" data-act=\"filtro\" data-k=\"").concat(k, "\">").concat(t, "<b>").concat(b.filter(fn).length, "</b></button>")).join('');
     const multi = !adm() && d.bases.length > 1 ? "<select class=\"sel-loja\" data-chg=\"selLoja\"><option value=\"\">Todas as lojas</option>".concat(d.bases.map(l => "<option value=\"".concat(l.cnpj, "\" ").concat(S.loja === l.cnpj ? 'selected' : '', ">").concat(esc(l.nome), "</option>")).join(''), "</select>") : '';
-    const aviso = '';
+    const aviso = infoLoja();
     let corpo;
     if (!d.veiculos.length) {
       corpo = "<div class=\"vazio\">".concat(I.vazio, "<h3>").concat(adm() ? 'Esta loja ainda não tem veículos' : 'Nenhum veículo liberado', "</h3><p>").concat(adm() ? 'Importe a planilha para alimentar a base.' : 'Quando o administrador importar a planilha, os veículos da sua loja aparecem aqui.', "</p></div>");
@@ -615,9 +624,22 @@ window.addEventListener('error', function (e) {
       corpo = "<div class=\"vazio\">".concat(I.vazio, "<h3>Nada encontrado</h3><p>Ajuste a busca ou o filtro.</p></div>");
     } else {
       const vis = lista.slice(0, S.limite);
-      corpo = "<div class=\"cab\"><div>Placa</div><div>Modelo</div><div>Valor venda</div><div>Laudo</div><div>Dt oferta</div><div>Dt coleta</div><div>Prazo boleto</div><div>Dias</div><div>Boleto</div><div>Documento</div><div></div></div>" + vis.map(v => cardHTML(v)).join('') + (lista.length > vis.length ? "<button class=\"mais\" data-act=\"mais\">Mostrar mais (".concat(lista.length - vis.length, ")</button>") : '');
+      corpo = "<div class=\"cab\"><div>Placa</div><div>Modelo / Chassi</div><div>Valor do Boleto</div><div>Data Oferta</div><div>Data da Liberação</div><div>Data Boleto</div><div>Dias</div><div>Boleto</div><div>Documento</div><div></div></div>" + vis.map(v => cardHTML(v)).join('') + (lista.length > vis.length ? "<button class=\"mais\" data-act=\"mais\">Mostrar mais (".concat(lista.length - vis.length, ")</button>") : '');
     }
     return "".concat(aviso, "<div class=\"barra\"><div class=\"busca\">").concat(I.busca, "<input type=\"search\" id=\"busca\" placeholder=\"Buscar placa, modelo").concat(adm() ? '' : ' ou loja', "\" value=\"").concat(esc(S.busca), "\" data-chg=\"busca\"></div>").concat(barraAdm).concat(multi).concat(btnNovo, "</div><div class=\"filtros\">").concat(chips, "</div><div id=\"lista\">").concat(corpo, "</div>");
+  }
+  // loja em foco: loja logada, ou a escolhida pelo administrador/coordenador
+  function lojaEmFoco() {
+    const d = S.d;
+    if (adm()) return S.sel && S.sel !== '*' ? d.lojas.find(l => l.cnpj === S.sel) : null;
+    if (d.bases.length === 1) return d.bases[0];
+    return S.loja ? d.bases.find(b => b.cnpj === S.loja) : null;
+  }
+  function infoLoja() {
+    const l = lojaEmFoco();
+    if (!l) return '';
+    const it = (r, v) => v ? '<span>' + r + ' <b>' + esc(v) + '</b></span>' : '';
+    return '<div class="info-loja"><div class="il-nome">' + esc(l.nome) + '</div>' + it('CNPJ', fcnpj(l.cnpj)) + it('Nº DN', l.nDn) + it('GCM', l.gcm) + it('Coordenador', l.coordenador) + '</div>';
   }
   function btnBoleto(v) {
     const s = "data-act=\"boleto\" data-id=\"".concat(esc(v.k), "\"");
@@ -673,7 +695,7 @@ window.addEventListener('error', function (e) {
     }
     const lembDoc = '';
     const rast = v.docStatus === 'enviado' ? "<div class=\"r2 r2-rast\" style=\"margin-left:auto\"><label>Código de rastreio</label>\n      <div class=\"rastreio\"><input type=\"text\" class=\"mono\" maxlength=\"13\" placeholder=\"AA123456789BR\" value=\"".concat(esc(v.rastreio), "\" data-mask=\"upper\" data-chg=\"rastreio\" data-id=\"").concat(id, "\">\n      <button class=\"ibtn\" data-act=\"copiar\" data-id=\"").concat(id, "\" title=\"Copiar código\">").concat(I.copiar, "</button>\n      <a class=\"lnk\" href=\"").concat(URL_CORREIOS, "\" target=\"_blank\" rel=\"noopener\" data-act=\"correios\" data-id=\"").concat(id, "\" title=\"Copia o código e abre o site dos Correios\">Rastrear nos Correios ↗</a>\n      </div></div>") : '';
-    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor venda\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor de venda\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Laudo\">").concat(v.laudo ? "<a class=\"laudo\" href=\"".concat(esc(v.laudo), "\" target=\"_blank\" rel=\"noopener\" title=\"Abrir laudo cautelar\">").concat(I.laudo, "</a>") : '<span class="muted">—</span>', "</div>\n    <div class=\"c\" data-l=\"Dt oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Dt coleta\"><div class=\"dtw\"><input type=\"date\" class=\"dtp").concat(v.dtColeta ? '' : ' vazio', "\" value=\"").concat(esc(v.dtColeta), "\" data-chg=\"coleta\" data-id=\"").concat(id, "\" title=\"Clique para escolher a data no calendário\">").concat(v.dtColeta ? '' : '<span class=\"dtph\">Escolha a data</span>', "</div></div>\n    <div class=\"c\" data-l=\"Prazo boleto\">").concat(fdata(v.prazo), "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes para o prazo do boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat(v.docStatus === 'enviado' ? contador(v.docEnviadoEm, 12, 'documento') : '', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat(boletoBloco || rast || lembDoc ? "<div class=\"row2\">".concat(boletoBloco).concat(lembDoc).concat(rast, "</div>") : '', "\n</article>");
+    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\"><div class=\"dtw\"><input type=\"date\" class=\"dtp").concat(v.dtColeta ? '' : ' vazio', "\" value=\"").concat(esc(v.dtColeta), "\" data-chg=\"coleta\" data-id=\"").concat(id, "\" title=\"Clique para escolher a data no calendário\">").concat(v.dtColeta ? '' : '<span class=\"dtph\">Escolha a data</span>', "</div></div>\n    <div class=\"c\" data-l=\"Data Boleto\"><div class=\"dtw\"><input type=\"date\" class=\"dtp" + (v.prazo ? '' : ' vazio') + "\" value=\"" + esc(v.prazo) + "\" data-chg=\"prazo\" data-id=\"" + id + "\" title=\"Data Boleto (vem da planilha; clique para corrigir)\">" + (v.prazo ? '' : '<span class=\"dtph\">Escolha a data</span>') + "</div></div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat(v.docStatus === 'enviado' ? contador(v.docEnviadoEm, 12, 'documento') : '', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat(boletoBloco || rast || lembDoc ? "<div class=\"row2\">".concat(boletoBloco).concat(lembDoc).concat(rast, "</div>") : '', "\n</article>");
   }
 
   /* ---------- ações na lista ---------- */
@@ -701,6 +723,19 @@ window.addEventListener('error', function (e) {
     novoVeiculo() { modalNovo(); },
     sair() { if (confirm('Sair desta conta?')) API.sair(); },
     trocarSenha() { modalSenha(); },
+    baixarModelo() { baixarModelo(); },
+    coordCodigo(el) {
+      const c = S.coords.find(x => x.nome === el.dataset.nome);
+      if (!c) return;
+      if (!c.email) return toast('Cadastre antes o e-mail (usuário) do coordenador.', true);
+      if (c.temSenha && !confirm(c.nome + ' já tem senha. Gerar um código novo para criar outra senha?')) return;
+      busy(el, async () => { const r = await srv('api_coordCodigo', c.nome); c.codigo = r.codigo; c.codigoEm = r.codigo_em; render(); toast('Código gerado: ' + r.codigo + '.'); });
+    },
+    copiarCodCoord(el) {
+      const c = S.coords.find(x => x.nome === el.dataset.nome);
+      const msg = 'Acesso ao Controle Consignado (coordenador)\nLink: ' + location.origin + location.pathname + '\nUsuário: ' + c.email + '\nCódigo: ' + c.codigo + '\n\nNo primeiro acesso, clique em "Primeiro acesso / esqueci a senha", digite o usuário (e-mail), o código e crie a sua senha. O código vale 7 dias.';
+      copiar(msg).then(ok => toast(ok ? 'Mensagem copiada! Cole no WhatsApp ou e-mail.' : 'Não foi possível copiar.', !ok));
+    },
     gerarCodigo(el) {
       const l = S.d.lojas.find(x => x.cnpj === el.dataset.cnpj);
       if (!l) return;
@@ -808,6 +843,10 @@ window.addEventListener('error', function (e) {
       const v = getV(el.dataset.id);
       copiar(v.placa).then(ok => toast(ok ? 'Placa copiada!' : 'Não foi possível copiar.', !ok));
     },
+    cpChassi(el) {
+      const v = getV(el.dataset.id);
+      copiar(v.chassi).then(ok => toast(ok ? 'Chassi copiado!' : 'Não foi possível copiar.', !ok));
+    },
     cpValor(el) {
       const v = getV(el.dataset.id), n = Number(v.valorVenda) || 0;
       copiar(n.toFixed(2).replace('.', ',')).then(ok => toast(ok ? 'Valor copiado: ' + n.toFixed(2).replace('.', ',') : 'Não foi possível copiar.', !ok));
@@ -855,7 +894,8 @@ window.addEventListener('error', function (e) {
     if (!k) return;
     const v = el.dataset.id ? getV(el.dataset.id) : null;
     const falha = x => toast(x.message, true);
-    if (k === 'coleta' && el.value && !/^20\d{2}-\d{2}-\d{2}$/.test(el.value)) return;   // ignora data incompleta
+    if ((k === 'coleta' || k === 'prazo') && el.value && !/^20\d{2}-\d{2}-\d{2}$/.test(el.value)) return;   // ignora data incompleta
+    if (k === 'prazo') { srv('api_salvarPrazo', v.f, v.id, el.value).then(atualiza).catch(falha); return; }
     if (k === 'enviadoem') {
       if (el.value && !/^20\d{2}-\d{2}-\d{2}$/.test(el.value)) return;
       srv('api_salvarEnviadoEm', v.f, v.id, el.value).then(atualiza).catch(falha);
@@ -869,8 +909,8 @@ window.addEventListener('error', function (e) {
       el.classList.add('erro');
     });else if (k === 'valor') {
       const n = parseInt(el.value.replace(/\D/g, '') || '0', 10) / 100;
-      if (!(n > 0)) { toast('Informe um valor de venda válido.', true); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); }
-      else if (Math.round(n * 100) !== Math.round((Number(v.valorVenda) || 0) * 100)) srv('api_salvarValor', v.f, v.id, n).then(r => { atualiza(r); toast('Valor de venda atualizado.'); }).catch(x => { falha(x); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); });
+      if (!(n > 0)) { toast('Informe um valor do boleto válido.', true); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); }
+      else if (Math.round(n * 100) !== Math.round((Number(v.valorVenda) || 0) * 100)) srv('api_salvarValor', v.f, v.id, n).then(r => { atualiza(r); toast('Valor do boleto atualizado.'); }).catch(x => { falha(x); el.value = mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100))); });
     } else if (k === 'selLoja') {
       S.loja = el.value;
       S.limite = 60;
@@ -887,6 +927,14 @@ window.addEventListener('error', function (e) {
         await carrega();
         render();
       });
+    } else if (k === 'coordEmail') {
+      const nome = el.dataset.nome;
+      srv('api_coordEmail', nome, el.value).then(r => {
+        const c = S.coords.find(x => x.nome === nome);
+        if (c) { c.email = r.email; }
+        render();
+        toast(r.email ? 'Usuário salvo: ' + r.email : 'E-mail removido.');
+      }).catch(x => { falha(x); el.classList.add('erro'); });
     } else if (k === 'emailLoja') {
       const cnpj = el.dataset.cnpj;
       srv('api_salvarEmailLoja', cnpj, el.value).then(l => {
@@ -914,7 +962,7 @@ window.addEventListener('error', function (e) {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') fechaModal();
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.dnovo) { e.preventDefault(); H.destAdd($('[data-act="destAdd"][data-t="' + e.target.dataset.dnovo + '"]')); }
-    if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja')) e.target.blur();
+    if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja' || e.target.dataset.chg === 'coordEmail')) e.target.blur();
   });
 
   /* ---------- modal ---------- */
@@ -1103,10 +1151,11 @@ window.addEventListener('error', function (e) {
       F('fid', 'Loja', { sel: [{ value: '', label: 'Escolha a loja…' }].concat(opcoes), v: pre, req: 1, w2: 1 }) +
       F('placa', 'Placa', { req: 1, mask: 'upper', ph: 'ABC1D23' }) +
       F('modelo', 'Modelo', { req: 1 }) +
-      F('valorVenda', 'Valor venda', { req: 1, mask: 'money', ph: 'R$ 0,00' }) +
-      F('hodometro', 'Hodômetro', { ph: 'km' }) +
-      F('dtOferta', 'Data da oferta', { type: 'date', req: 1, v: dh }) +
-      F('laudo', 'Link do laudo cautelar', { w2: 1, ph: 'https://…', hint: 'Opcional.' }) +
+      F('chassi', 'Chassi', { mask: 'upper' }) +
+      F('valorVenda', 'Valor do Boleto', { req: 1, mask: 'money', ph: 'R$ 0,00' }) +
+      F('dtOferta', 'Data Oferta', { type: 'date', req: 1, v: dh }) +
+      F('dtLiberacao', 'Data da Liberação', { type: 'date' }) +
+      F('dtBoleto', 'Data Boleto', { type: 'date' }) +
       '</div></div>' +
       '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mSalvarNovo">Incluir veículo</button></div>');
     $('#mSalvarNovo').onclick = ev => {
@@ -1356,10 +1405,20 @@ window.addEventListener('error', function (e) {
   function viewImportar() {
     const r = S.imp,
       pg = S.prog;
-    const dz = "<div class=\"drop\" id=\"drop\">".concat(I.upload, "<p>Arraste a planilha de ofertas aceitas (.xlsx) aqui<br>ou escolha o arquivo</p><label class=\"btn pri\" style=\"cursor:pointer\">Escolher planilha<input type=\"file\" id=\"fPlan\" accept=\".xlsx,.xls\" hidden></label></div>");
+    const dz = "<div class=\"drop\" id=\"drop\">".concat(I.upload, "<p>Arraste a planilha (.xlsx) aqui<br>ou escolha o arquivo</p><label class=\"btn pri\" style=\"cursor:pointer\">Escolher planilha<input type=\"file\" id=\"fPlan\" accept=\".xlsx,.xls\" hidden></label></div>");
     let res = '';
-    if (pg) res = progHTML(pg);else if (r && r.erro) res = "<div class=\"info\" style=\"background:var(--perigo-bg);border-color:var(--perigo);color:var(--perigo);margin-top:16px\">".concat(esc(r.erro), "</div>");else if (r) res = "<div class=\"resumo\">\n      <div class=\"kpi\"><b>".concat(r.total, "</b><span>linhas na planilha</span></div>\n      <div class=\"kpi verde\"><b>").concat(r.ok.length, "</b><span>com loja e CNPJ (serão importadas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.semLoja, "</b><span>sem loja (ignoradas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.lojas, "</b><span>lojas</span></div></div>\n    <div class=\"scroll-x\"><table class=\"tb\"><thead><tr><th>Placa</th><th>Modelo</th><th>Valor venda</th><th>Dt oferta</th><th>Loja</th><th>CNPJ</th></tr></thead><tbody>\n    ").concat(r.ok.slice(0, 6).map(x => "<tr><td><span class=\"plate\">".concat(esc(x.placa), "</span></td><td>").concat(esc(x.modelo), "</td><td>").concat(brl(x.valorVenda), "</td><td>").concat(fdata(x.dtOferta), "</td><td>").concat(esc(x.loja), "</td><td>").concat(esc(fcnpj(x.cnpj)), "</td></tr>")).join(''), "\n    </tbody></table></div>").concat(r.ok.length > 6 ? "<p class=\"muted\">… e mais ".concat(r.ok.length - 6, " veículos.</p>") : '', "\n    <div style=\"display:flex;gap:10px;margin-top:16px\"><button class=\"btn\" data-act=\"limparImp\">Cancelar</button><button class=\"btn verde\" id=\"btnImp\" ").concat(r.ok.length ? '' : 'disabled', ">Importar ").concat(r.ok.length, " veículos</button></div>");
-    return viewMigrar() + "<div class=\"painel\"><h2>Importar planilha de ofertas</h2><div class=\"muted\">O sistema separa por loja (colunas Q e R) e atualiza a base de cada uma, sem perder o andamento dos veículos que já estão no painel. Lojas novas aparecem em “Lojas e acessos” para você cadastrar o e-mail.</div>".concat(pg ? '' : dz).concat(res, "</div>");
+    if (pg) res = progHTML(pg);else if (r && r.erro) res = "<div class=\"info\" style=\"background:var(--perigo-bg);border-color:var(--perigo);color:var(--perigo);margin-top:16px\">".concat(esc(r.erro), "</div>");else if (r) res = "<div class=\"resumo\">\n      <div class=\"kpi\"><b>".concat(r.total, "</b><span>linhas na planilha</span></div>\n      <div class=\"kpi verde\"><b>").concat(r.ok.length, "</b><span>com loja e CNPJ (serão importadas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.semLoja, "</b><span>sem loja (ignoradas)</span></div>\n      <div class=\"kpi\"><b>").concat(r.lojas, "</b><span>lojas</span></div></div>\n    <div class=\"scroll-x\"><table class=\"tb\"><thead><tr><th>Placa</th><th>Modelo</th><th>Valor do Boleto</th><th>Data Boleto</th><th>Loja</th><th>GCM</th></tr></thead><tbody>\n    ").concat(r.ok.slice(0, 6).map(x => "<tr><td><span class=\"plate\">".concat(esc(x.placa), "</span></td><td>").concat(esc(x.modelo), "</td><td>").concat(brl(x.valorBoleto), "</td><td>").concat(fdata(x.dtBoleto), "</td><td>").concat(esc(x.loja), "</td><td>").concat(esc(x.gcm), "</td></tr>")).join(''), "\n    </tbody></table></div>").concat(r.ok.length > 6 ? "<p class=\"muted\">… e mais ".concat(r.ok.length - 6, " veículos.</p>") : '', "\n    <div style=\"display:flex;gap:10px;margin-top:16px\"><button class=\"btn\" data-act=\"limparImp\">Cancelar</button><button class=\"btn verde\" id=\"btnImp\" ").concat(r.ok.length ? '' : 'disabled', ">Importar ").concat(r.ok.length, " veículos</button></div>");
+    return viewMigrar() + "<div class=\"painel\"><h2>Importar planilha</h2><div class=\"muted\">Use sempre o <b>modelo</b> (colunas PLACA, MODELO, CHASSI, Data Oferta, Valor do Boleto, Data da Liberação, Data Boleto, DN, CNPJ, Nº DN, COORDENADOR, GCM). O sistema separa por loja (DN e CNPJ), atualiza valor, datas, GCM e coordenador, e nunca apaga o andamento dos veículos. Lojas novas aparecem em “Lojas e acessos” para você gerar o código de acesso.</div><div style=\"margin-top:12px\"><button class=\"btn\" data-act=\"baixarModelo\">" + I.baixar + "Baixar modelo da planilha</button></div>".concat(pg ? '' : dz).concat(res, "</div>");
+  }
+  const COLS_MODELO = ['PLACA', 'MODELO', 'CHASSI', 'Data Oferta', 'Valor do Boleto', 'Data da Liberação', 'Data Boleto', 'DN', 'CNPJ', 'Nº DN', 'COORDENADOR', 'GCM'];
+  function baixarModelo() {
+    if (typeof XLSX === 'undefined') return toast('Biblioteca da planilha não carregou. Recarregue a página.', true);
+    const ws = XLSX.utils.aoa_to_sheet([COLS_MODELO]);
+    ws['!cols'] = [10, 40, 22, 12, 16, 16, 12, 40, 18, 9, 28, 28].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
+    XLSX.writeFile(wb, 'modelo-controle-consignado.xlsx');
+    toast('Modelo baixado. Preencha a partir da linha 2, sem mudar os títulos.');
   }
   function viewMigrar() {
     if (S.prog) return '';
@@ -1381,13 +1440,14 @@ window.addEventListener('error', function (e) {
         tot.veiculos += r.veiculos; tot.descartados += r.descartados;
       }
       await carrega();
+      S.coords = null;
       S.mig = { msg: 'Pronto! ' + tot.lojas + ' lojas novas, ' + tot.veiculos + ' veículos com andamento, ' + tot.finalizados + ' finalizados antigos' + (tot.descartados ? ', ' + tot.descartados + ' linhas ignoradas (sem loja ou sem data).' : '.') };
     } catch (e) { S.mig = { erro: 'A migração parou: ' + e.message + ' O que já entrou ficou salvo; pode escolher o arquivo de novo.' }; }
     render();
   }
   document.addEventListener('change', e => { if (e.target.id === 'fMig' && e.target.files[0]) migrar(e.target.files[0]); });
   function modalSenha() {
-    abreModal(mHead('Trocar senha', esc(S.d.role === 'admin' ? S.d.email : (S.d.bases[0] || {}).nome || '')) +
+    abreModal(mHead('Trocar senha', esc(S.d.role !== 'loja' ? S.d.email : (S.d.bases[0] || {}).nome || '')) +
       '<div class="m-body" id="mf"><div class="grid">' + F('s1', 'Nova senha', { type: 'password', req: 1, hint: 'Mínimo de 6 caracteres.' }) + F('s2', 'Repita a nova senha', { type: 'password', req: 1 }) + '</div></div>' +
       '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mSenha">Salvar senha</button></div>', true);
     $('#mSenha').onclick = ev => {
@@ -1428,36 +1488,30 @@ window.addEventListener('error', function (e) {
         defval: ''
       });
       if (rows.length < 2) throw new Error('A planilha está vazia.');
-      const head = rows[0].map(h => String(h).trim().toLowerCase());
-      const col = (nomes, fb) => {
-        for (const n of nomes) {
-          const i = head.indexOf(n);
-          if (i >= 0) return i;
-        }
-        return fb;
-      };
+      // nomes das colunas sem acento/maiúsculas: "Nº DN" -> "n dn", "Data da Liberação" -> "data da liberacao"
+      const norm = h => String(h || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[º°ª.]/g, ' ').replace(/\s+/g, ' ').trim();
+      const head = rows[0].map(norm);
+      const col = nomes => { for (const nm of nomes) { const i = head.indexOf(nm); if (i >= 0) return i; } return -1; };
       const C = {
-        placa: col(['placa'], 0),
-        modelo: col(['modelo'], 1),
-        hodo: col(['hodometro', 'hodômetro'], 3),
-        laudo: col(['linklaudocautelar'], 6),
-        valor: col(['valorvenda'], 7),
-        loja: col(['nmgrupodncompra'], 16),
-        cnpj: col(['cnpjdn'], 17),
-        oferta: col(['data oferta'], 22),
-        compra: col(['datacompra'], 19)
+        placa: col(['placa']), modelo: col(['modelo']), chassi: col(['chassi']), oferta: col(['data oferta', 'data da oferta']),
+        valor: col(['valor do boleto', 'valor boleto']), lib: col(['data da liberacao', 'data liberacao']),
+        bol: col(['data boleto', 'data do boleto']), loja: col(['dn', 'loja']), cnpj: col(['cnpj']),
+        ndn: col(['n dn', 'no dn', 'numero dn', 'n do dn']), coord: col(['coordenador']), gcm: col(['gcm'])
       };
+      const falta = [['placa', 'PLACA'], ['modelo', 'MODELO'], ['oferta', 'Data Oferta'], ['loja', 'DN'], ['cnpj', 'CNPJ']].filter(([k]) => C[k] < 0).map(x => x[1]);
+      if (falta.length) throw new Error('A planilha não está no modelo: faltam as colunas ' + falta.join(', ') + '. Clique em "Baixar modelo da planilha" e use esse arquivo.');
+      const cel = (r, i) => i < 0 ? '' : r[i];
+      const txt = (r, i) => String(cel(r, i) == null ? '' : cel(r, i)).trim();
       const ok = [];
       let semLoja = 0,
         semData = 0,
         total = 0;
       rows.slice(1).forEach(r => {
-        if (!String(r[C.placa]).trim()) return;
+        if (!txt(r, C.placa)) return;
         total++;
-        const loja = String(r[C.loja] || '').trim(),
-          cnpj = String(r[C.cnpj] || '').replace(/\D/g, '').padStart(14, '0');
-        // 'DATA OFERTA'; se a coluna não trouxer uma data válida, usa a 'DataCompra'
-        const dtOferta = serialParaISO(r[C.oferta]) || serialParaISO(r[C.compra]);
+        const loja = txt(r, C.loja),
+          cnpj = txt(r, C.cnpj).replace(/\D/g, '').padStart(14, '0');
+        const dtOferta = serialParaISO(cel(r, C.oferta));
         if (!loja || cnpj === '00000000000000') {
           semLoja++;
           return;
@@ -1467,14 +1521,18 @@ window.addEventListener('error', function (e) {
           return;
         }
         ok.push({
-          placa: String(r[C.placa]).trim().toUpperCase(),
-          modelo: String(r[C.modelo]).trim(),
-          valorVenda: numero(r[C.valor]),
-          hodometro: String(r[C.hodo] || ''),
-          laudo: String(r[C.laudo] || '').trim(),
+          placa: txt(r, C.placa).toUpperCase(),
+          modelo: txt(r, C.modelo),
+          chassi: txt(r, C.chassi).toUpperCase(),
+          valorBoleto: numero(cel(r, C.valor)),
           dtOferta,
+          dtLiberacao: serialParaISO(cel(r, C.lib)),
+          dtBoleto: serialParaISO(cel(r, C.bol)),
           loja,
-          cnpj
+          cnpj,
+          nDn: txt(r, C.ndn),
+          coordenador: txt(r, C.coord).toUpperCase(),
+          gcm: txt(r, C.gcm).toUpperCase()
         });
       });
       S.imp = {
@@ -1492,7 +1550,7 @@ window.addEventListener('error', function (e) {
     }
     if (S.imp.erro || !S.imp.ok.length) {
       terminaProg();
-      if (!S.imp.erro) S.imp.erro = S.imp.semData && !S.imp.semLoja_ ? 'Nenhuma linha tem uma data válida nas colunas "DATA OFERTA" ou "DataCompra" (' + S.imp.semData + ' linhas). Confira essas colunas na planilha.' : 'Nenhuma linha com loja e CNPJ foi encontrada nessa planilha.';
+      if (!S.imp.erro) S.imp.erro = S.imp.semData && !S.imp.semLoja_ ? 'Nenhuma linha tem uma data válida na coluna "Data Oferta" (' + S.imp.semData + ' linhas). Confira essas colunas na planilha.' : 'Nenhuma linha com loja e CNPJ foi encontrada nessa planilha.';
       render();
       return;
     }
@@ -1548,9 +1606,10 @@ window.addEventListener('error', function (e) {
         S.imp = null;
         terminaProg();
         await carrega();
+        S.coords = null;   // coordenadores podem ter mudado com a planilha
         S.view = 'lojas';
         render();
-        toast("".concat(tot.novos, " novos, ").concat(tot.atualizados, " atualizados · ").concat(tot.lojasNovas, " lojas novas. Cadastre os e-mails das lojas."));
+        toast("".concat(tot.novos, " novos, ").concat(tot.atualizados, " atualizados · ").concat(tot.lojasNovas, " lojas novas. Gere os códigos de acesso das lojas novas."));
       } catch (err) {
         const feitas = S.prog ? S.prog.feitas : 0;
         terminaProg();
@@ -1593,12 +1652,26 @@ window.addEventListener('error', function (e) {
     };
     return '<div class="painel"><h2>Lojas e acessos</h2><div class="muted">O <b>usuário</b> de cada loja é o <b>CNPJ</b> (só números). Clique em <b>Gerar código</b> e passe o código para a loja: no primeiro acesso ela digita o CNPJ, o código e cria a própria senha. Esqueceu a senha? Gere um código novo (vale 7 dias).</div>' +
       (pend ? '<div class="info az" style="margin-top:14px">' + pend + ' loja' + (pend > 1 ? 's' : '') + ' ainda sem senha.</div>' : '') +
-      (ls.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Loja</th><th>Usuário (CNPJ)</th><th>Veículos</th><th>Acesso</th><th></th></tr></thead><tbody>' +
-        ls.map(l => '<tr><td><strong>' + esc(l.nome) + '</strong></td><td><span class="mono">' + esc(l.cnpj) + '</span></td><td>' + l.total + '</td>' +
+      (ls.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Loja</th><th>Nº DN</th><th>Usuário (CNPJ)</th><th>GCM</th>' + (admTotal() ? '<th>Coordenador</th>' : '') + '<th>Veículos</th><th>Acesso</th><th></th></tr></thead><tbody>' +
+        ls.map(l => '<tr><td><strong>' + esc(l.nome) + '</strong></td><td>' + esc(l.nDn || '—') + '</td><td><span class="mono">' + esc(l.cnpj) + '</span></td><td>' + esc(l.gcm || '—') + '</td>' + (admTotal() ? '<td>' + esc(l.coordenador || '—') + '</td>' : '') + '<td>' + l.total + '</td>' +
           '<td style="min-width:230px">' + acesso(l) + '</td>' +
           '<td style="white-space:nowrap"><button class="btn sm" data-act="gerarCodigo" data-cnpj="' + l.cnpj + '">' + (l.codigo || l.liberado ? 'Novo código' : 'Gerar código') + '</button> ' +
           '<button class="btn sm" data-act="verLoja" data-f="' + esc(l.fileId) + '">Ver veículos</button></td></tr>').join('') +
-        '</tbody></table></div>' : '<div class="vazio" style="margin-top:16px">Nenhuma loja ainda. Elas são criadas automaticamente ao importar a planilha.</div>') + '</div>';
+        '</tbody></table></div>' : '<div class="vazio" style="margin-top:16px">Nenhuma loja ainda. Elas são criadas automaticamente ao importar a planilha.</div>') + '</div>' + viewCoords();
+  }
+  function viewCoords() {
+    if (!admTotal()) return '';
+    if (!S.coords) { srv('api_coordListar').then(c => { S.coords = c; if (S.view === 'lojas') render(); }).catch(x => toast(x.message, true)); return '<div class="painel coord-box"><h2>Coordenadores</h2><div class="muted">Carregando…</div></div>'; }
+    const cs = S.coords;
+    const ac = c => (c.temSenha ? '<span class="ac-ok">✓ Senha criada</span>' : '<span class="ac-no">Sem senha</span>') +
+      (c.codigo ? '<div class="ac-cod"><b class="mono">' + esc(c.codigo) + '</b><button class="ibtn" data-act="copiarCodCoord" data-nome="' + esc(c.nome) + '" title="Copiar mensagem para o coordenador">' + I.copiar + '</button><small>vale até ' + fdata(new Date(new Date(c.codigoEm).getTime() + 7 * 864e5).toISOString()) + '</small></div>' : '');
+    return '<div class="painel coord-box"><h2>Coordenadores</h2><div class="muted">O coordenador vê e altera só as lojas em que o nome dele está na coluna <b>COORDENADOR</b> da planilha. Cadastre o <b>e-mail</b> (será o usuário dele), gere o código e envie: ele cria a senha em "Primeiro acesso".</div>' +
+      (cs.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Coordenador</th><th>Lojas</th><th>Usuário (e-mail)</th><th>Acesso</th><th></th></tr></thead><tbody>' +
+        cs.map(c => '<tr><td><strong>' + esc(c.nome) + '</strong></td><td>' + c.lojas + '</td>' +
+          '<td><input type="email" value="' + esc(c.email) + '" placeholder="email@empresa.com" data-chg="coordEmail" data-nome="' + esc(c.nome) + '"></td>' +
+          '<td style="min-width:200px">' + ac(c) + '</td>' +
+          '<td><button class="btn sm" data-act="coordCodigo" data-nome="' + esc(c.nome) + '">' + (c.codigo || c.temSenha ? 'Novo código' : 'Gerar código') + '</button></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="vazio" style="margin-top:12px">Nenhum coordenador na planilha ainda (coluna COORDENADOR).</div>') + '</div>';
   }
 
 
@@ -1628,7 +1701,7 @@ window.addEventListener('error', function (e) {
     window.__ok = true;
     d.veiculos.forEach(norm);
     S.d = d;
-    S.view = d.role === 'admin' ? 'lojas' : 'veiculos';
+    S.view = d.role !== 'loja' ? 'lojas' : 'veiculos';
     if (d.role === 'admin' && !d.lojas.length) S.view = 'importar';
     render();
   }
