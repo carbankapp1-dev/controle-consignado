@@ -312,6 +312,12 @@
   .stbtn.chk .dot { background: #e6a800; }
   .sair { margin-left: 10px; background: #fff; border: 1px solid #cfd5dc; color: #111741; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .sair:hover { background: #f6f7f9; }
+  .m-tit { margin: 0 0 6px; font-size: 18px; color: var(--azul); }
+  .m-sub { margin: 0 0 8px; color: var(--cinza-500); }
+  .checklist { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+  .checklist li { position: relative; padding: 10px 12px 10px 38px; background: var(--cinza-50); border: 1px solid var(--cinza-200); border-radius: 10px; }
+  .checklist li::before { content: '✓'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+  .checklist small { color: var(--cinza-500); }
   .ac-ok { color: var(--verde-forte); font-weight: 700; font-size: 12.5px; }
   .ac-no { color: var(--alerta); font-weight: 700; font-size: 12.5px; }
   .ac-cod { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
@@ -340,9 +346,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=5"></script>
-<script src="js/demo.js?v=5"></script>
-<script src="js/api.js?v=5"></script>
+<script src="js/config.js?v=6"></script>
+<script src="js/demo.js?v=6"></script>
+<script src="js/api.js?v=6"></script>
 </head>
 <body>
 <header class="topo">
@@ -549,9 +555,7 @@ window.addEventListener('error', function (e) {
 
   /* ---------- regras de negócio ---------- */
   function etapa(v) {
-    if (v.docStatus === 'enviado') return 'docto';
-    if (v.boletoStatus === 'pago') return 'pago';
-    if (v.boletoStatus === 'recebido') return 'recebido';
+    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago' || v.docStatus === 'enviado') return 'recebido';
     if (v.boletoStatus === 'solicitado') return 'solicitado';
     return 'novo';
   }
@@ -562,7 +566,7 @@ window.addEventListener('error', function (e) {
       cls: 'muted'
     };
     const n = diff(v.prazo, S.d.hoje);
-    const cls = v.docStatus === 'enviado' ? 'done' : n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
+    const cls = n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
     return {
       n,
       txt: String(n),
@@ -571,9 +575,9 @@ window.addEventListener('error', function (e) {
   }
   const urgente = v => {
     const i = diasInfo(v);
-    return i.n !== null && i.n <= 15 && v.docStatus !== 'enviado';
+    return i.n !== null && i.n <= 15;
   };
-  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Pagar boleto', v => etapa(v) === 'recebido'], ['pago', 'Pago · pedir documento', v => etapa(v) === 'pago'], ['docto', 'Documento pedido', v => etapa(v) === 'docto'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
+  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Boleto chegou', v => etapa(v) === 'recebido'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
   // filtro de GCM (administrador e coordenador)
   const lojasGcm = () => S.d.lojas.filter(l => !S.gcm || l.gcm === S.gcm);
   const listaGcms = () => [...new Set(S.d.lojas.map(l => l.gcm).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -692,7 +696,7 @@ window.addEventListener('error', function (e) {
   function contadorHoras(iso, limiteH) {
     const d = new Date(iso);
     if (isNaN(d)) return '';
-    const h = (Date.now() - d.getTime()) / 36e5, dias = Math.floor(h / 24), dm = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+    const h = Math.max(0, (Date.now() - d.getTime()) / 36e5), dias = Math.floor(h / 24), dm = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
     const atraso = h > limiteH;
     return '<span class="cont' + (atraso ? ' atraso' : '') + '" title="Formulário acionado em ' + dm + ' · ' + Math.floor(h) + ' horas' + (atraso ? ' — boleto ainda não chegou (limite: ' + limiteH + ' horas)' : '') + '">' + dm + ' · ' + dias + (dias === 1 ? ' dia' : ' dias') + '</span>';
   }
@@ -707,15 +711,7 @@ window.addEventListener('error', function (e) {
     const di = diasInfo(v),
       id = esc(v.k);
     const dls = v.boletoArquivos.map(f => "<button class=\"dl\" data-act=\"baixar\" data-id=\"".concat(id, "\" data-f=\"").concat(esc(f.id), "\" title=\"Baixar boleto\">").concat(I.baixar).concat(esc(f.name), "</button>")).join('');
-    let boletoBloco = '';
-    if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') {
-      boletoBloco = "<div class=\"r2 r2-aviso\"><span class=\"lbl chegou" + (v.docEnviadoEm ? " ok" : "") + "\"><i class=\"dot verde\"></i>" + (v.docEnviadoEm ? "Boleto enviado" : "Boleto chegou no e-mail") + "</span>" +
-        "<span class=\"enviado-em\"><span class=\"dtw\"><input type=\"date\" class=\"dtp" + (v.docEnviadoEm ? '' : ' vazio') + "\" value=\"" + esc(String(v.docEnviadoEm || '').slice(0, 10)) + "\" data-chg=\"enviadoem\" data-id=\"" + id + "\" title=\"Clique para escolher a data em que o boleto foi enviado\">" + (v.docEnviadoEm ? '' : '<span class=\"dtph\">Data do envio</span>') + "</span></span>" +
-        (v.boletoStatus === 'pago' ? "<span class=\"lbl\">Comprovante enviado em " + fdata(v.comprovanteEm) + "</span>" : '') + "</div>";
-    }
-    const lembDoc = '';
-    const rast = v.docStatus === 'enviado' ? "<div class=\"r2 r2-rast\" style=\"margin-left:auto\"><label>Código de rastreio</label>\n      <div class=\"rastreio\"><input type=\"text\" class=\"mono\" maxlength=\"13\" placeholder=\"AA123456789BR\" value=\"".concat(esc(v.rastreio), "\" data-mask=\"upper\" data-chg=\"rastreio\" data-id=\"").concat(id, "\">\n      <button class=\"ibtn\" data-act=\"copiar\" data-id=\"").concat(id, "\" title=\"Copiar código\">").concat(I.copiar, "</button>\n      <a class=\"lnk\" href=\"").concat(URL_CORREIOS, "\" target=\"_blank\" rel=\"noopener\" data-act=\"correios\" data-id=\"").concat(id, "\" title=\"Copia o código e abre o site dos Correios\">Rastrear nos Correios ↗</a>\n      </div></div>") : '';
-    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\"><div class=\"dtw\"><input type=\"date\" class=\"dtp").concat(v.dtColeta ? '' : ' vazio', "\" value=\"").concat(esc(v.dtColeta), "\" data-chg=\"coleta\" data-id=\"").concat(id, "\" title=\"Clique para escolher a data no calendário\">").concat(v.dtColeta ? '' : '<span class=\"dtph\">Escolha a data</span>', "</div></div>\n    <div class=\"c\" data-l=\"Data Boleto\"><div class=\"dtw\"><input type=\"date\" class=\"dtp" + (v.prazo ? '' : ' vazio') + "\" value=\"" + esc(v.prazo) + "\" data-chg=\"prazo\" data-id=\"" + id + "\" title=\"Data Boleto (vem da planilha; clique para corrigir)\">" + (v.prazo ? '' : '<span class=\"dtph\">Escolha a data</span>') + "</div></div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat(v.docStatus === 'enviado' ? contador(v.docEnviadoEm, 12, 'documento') : '', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat(boletoBloco || rast || lembDoc ? "<div class=\"row2\">".concat(boletoBloco).concat(lembDoc).concat(rast, "</div>") : '', "\n</article>");
+    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\">").concat(fdata(v.dtColeta), "</div>\n    <div class=\"c\" data-l=\"Data Boleto\">" + fdata(v.prazo) + "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat('', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat("\n</article>");
   }
 
   /* ---------- ações na lista ---------- */
@@ -742,6 +738,7 @@ window.addEventListener('error', function (e) {
   const H = {
     novoVeiculo() { modalNovo(); },
     sair() { if (confirm('Sair desta conta?')) API.sair(); },
+    abrirForm(el) { const v = getV(el.dataset.id); abrirFormulario(v.placa); toast('Formulário aberto em nova aba. Placa ' + v.placa + ' copiada.'); },
     trocarSenha() { modalSenha(); },
     baixarModelo() { baixarModelo(); },
     coordCodigo(el) {
@@ -1208,29 +1205,35 @@ window.addEventListener('error', function (e) {
       });
     };
   }
+  function abrirFormulario(placa) {
+    // abre já no clique (senão o navegador bloqueia a nova aba) e copia a placa para colar lá
+    const a = document.createElement('a');
+    a.href = URL_FORM_BOLETO; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    try { navigator.clipboard.writeText(placa).catch(() => {}); } catch (e) { }
+  }
   function modalPlaca(v) {
     abreModal(mHead('Solicitar boleto', esc(v.placa) + ' · ' + esc(v.modelo)) +
-      '<div class="m-body" id="mf"><div class="info az">Confira a placa do veículo e clique em <b>Próximo</b>. O formulário de solicitação abre em uma nova aba e a placa fica copiada para você colar lá.</div>' +
-      '<div class="grid">' + F('placa', 'Placa', { req: 1, mask: 'upper', v: v.placa, ph: 'ABC1D23' }) + '</div></div>' +
-      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mProximo">Próximo</button></div>', true);
-    const inp = $('#mf [data-k=placa]');
-    inp.focus();
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') $('#mProximo').click(); });
-    $('#mProximo').onclick = ev => {
-      const placa = String(inp.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (placa.length !== 7) { inp.classList.add('erro'); toast('Placa inválida (7 caracteres).', true); return; }
-      // abre o formulário já no clique (senão o navegador bloqueia a nova aba) e copia a placa para colar lá
-      const a = document.createElement('a');
-      a.href = URL_FORM_BOLETO; a.target = '_blank'; a.rel = 'noopener';
-      document.body.appendChild(a); a.click(); a.remove();
-      try { navigator.clipboard.writeText(placa).catch(() => {}); } catch (e) { }
-      busy(ev.currentTarget, async () => {
-        const nv = await srv('api_iniciarBoleto', v.f, v.id, placa);
-        fechaModal();
-        atualiza(nv);
-        toast('Formulário aberto. Placa ' + placa + ' copiada: cole no formulário.');
-      });
+      '<div class="m-body"><h3 class="m-tit">Agora vamos preencher o formulário de solicitação de boleto</h3>' +
+      '<p class="m-sub">Antes de abrir, tenha em mãos:</p><ul class="checklist">' +
+      '<li><b>Placa</b> <span class="plate">' + esc(v.placa) + '</span> <small>(é copiada ao abrir o formulário)</small></li>' +
+      '<li><b>Hodômetro</b> (quilometragem atual)</li>' +
+      '<li><b>Dados do cliente</b> (comprador): nome, RG, e-mail e endereço completo</li>' +
+      '<li><b>Dados da loja</b>: razão social, CNPJ, e-mail e endereço</li></ul>' +
+      '<div class="info az" id="mJaInfo" hidden>Já preencheu e enviou o formulário? Clique em <b>Já preenchi o formulário</b> e o veículo passa para <b>Aguardando boleto</b>. Se só estava olhando, é só fechar.</div></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar">Fechar</button><span style="flex:1"></span>' +
+      '<button class="btn" id="mAbrir">Abrir formulário ↗</button><button class="btn pri" id="mJa">Já preenchi o formulário</button></div>');
+    $('#mAbrir').onclick = () => {
+      abrirFormulario(v.placa);
+      $('#mJaInfo').hidden = false;
+      toast('Formulário aberto em nova aba. Placa ' + v.placa + ' copiada.');
     };
+    $('#mJa').onclick = ev => busy(ev.currentTarget, async () => {
+      const nv = await srv('api_iniciarBoleto', v.f, v.id, v.placa);
+      fechaModal();
+      atualiza(nv);
+      toast('Pronto! ' + v.placa + ' está como Aguardando boleto.');
+    });
   }
   function modalBoletoForm(v) {
     const bs = S.d.bases.find(b => b.fileId === v.f) || {
@@ -1316,9 +1319,9 @@ window.addEventListener('error', function (e) {
     const titulo = est === 'solicitado' ? 'Aguardando o boleto' : est === 'recebido' ? 'Boleto recebido' : 'Comprovante enviado';
     const link = !!v.placaBoleto;
     const msg0 = est === 'solicitado' ? 'A solicitação foi enviada. Verifico a caixa de e-mail a cada poucos minutos e, quando chegar a resposta com o PDF, o botão fica verde.' : est === 'recebido' ? 'O boleto chegou e já está salvo. <b>1.</b> Baixe e pague. <b>2.</b> Anexe o comprovante abaixo: ele vai como resposta a todos no mesmo e-mail do boleto, mantendo a conversa.' : "O comprovante foi enviado em ".concat(fdh(v.comprovanteEm)).concat(v.comprovanteNome ? " (".concat(esc(v.comprovanteNome), ")") : '', ". Agora é só enviar o documento por e-mail e preencher <b>Boleto enviado em</b> no card.");
-    const msg = est === 'solicitado' ? 'O formulário foi acionado' + (link ? ' para a placa <b>' + esc(v.placaBoleto) + '</b>' : '') + '. Quando o boleto chegar no seu e-mail, clique em <b>Boleto chegou</b>. O contador fica vermelho depois de 72 horas.' : msg0;
+    const msg = est === 'solicitado' ? 'Formulário preenchido em <b>' + fdh(v.boletoEnviadoEm) + '</b>. Quando o boleto chegar no seu e-mail, clique em <b>Boleto chegou</b>. O contador fica vermelho depois de 72 horas.' : msg0;
     const linhas = link ? '<dt>Placa informada</dt><dd>' + esc(v.placaBoleto) + '</dd>' : '';
-    abreModal("".concat(mHead(titulo, "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\">\n    <div class=\"info ").concat(est === 'solicitado' ? 'az' : '', "\">").concat(msg, "</div>\n    <dl class=\"lista-kv\">\n      <dt>Solicitado em</dt><dd>").concat(fdh(v.boletoEnviadoEm), "</dd>\n      ").concat(linhas, "\n    </dl>\n    ").concat(est !== 'solicitado' ? "<div style=\"margin-bottom:14px\">".concat(dlChips(v), "</div>") : '', "\n    ").concat(est === 'recebido' ? "<div class=\"sec\"><h3>Comprovante de pagamento <em style=\"color:var(--perigo);font-style:normal\">*</em></h3><div class=\"file\" id=\"fCompBox\"><input type=\"file\" id=\"fComp\" accept=\"image/*,application/pdf\"></div><div class=\"hint\">PDF ou imagem, até 9 MB. Será enviado como resposta no e-mail do boleto.</div></div>" : '', "\n    ").concat(est === 'solicitado' ? '' : '', "\n  </div>\n  <div class=\"m-foot\">").concat(est === 'solicitado' ? '<button class="btn" data-act="desfazer" data-id="' + esc(v.k) + '" style="margin-right:auto" title="Clicou por engano? Volta para não solicitado">Desfazer pedido</button>' : '', "<button class=\"btn\" data-act=\"fechar\">Fechar</button>\n    ").concat(est === 'solicitado' ? '<button class="btn pri" id="mChegou">Boleto chegou</button>' : '', "\n    ").concat(est === 'recebido' ? '<button class="btn laranja" id="mComp">Enviar comprovante</button>' : '', "</div>"));
+    abreModal("".concat(mHead(titulo, "".concat(esc(v.placa), " · ").concat(esc(v.modelo))), "\n  <div class=\"m-body\">\n    <div class=\"info ").concat(est === 'solicitado' ? 'az' : '', "\">").concat(msg, "</div>\n    <dl class=\"lista-kv\">\n      <dt>Solicitado em</dt><dd>").concat(fdh(v.boletoEnviadoEm), "</dd>\n      ").concat(linhas, "\n    </dl>\n    ").concat(est !== 'solicitado' ? "<div style=\"margin-bottom:14px\">".concat(dlChips(v), "</div>") : '', "\n    ").concat(est === 'recebido' ? "<div class=\"sec\"><h3>Comprovante de pagamento <em style=\"color:var(--perigo);font-style:normal\">*</em></h3><div class=\"file\" id=\"fCompBox\"><input type=\"file\" id=\"fComp\" accept=\"image/*,application/pdf\"></div><div class=\"hint\">PDF ou imagem, até 9 MB. Será enviado como resposta no e-mail do boleto.</div></div>" : '', "\n    ").concat(est === 'solicitado' ? '' : '', "\n  </div>\n  <div class=\"m-foot\">").concat(est === 'solicitado' ? '<button class="btn" data-act="desfazer" data-id="' + esc(v.k) + '" title="Clicou por engano? Volta para não solicitado">Desfazer pedido</button><button class="btn" data-act="abrirForm" data-id="' + esc(v.k) + '" style="margin-right:auto" title="Abre o formulário de novo (a placa é copiada)">Abrir formulário ↗</button>' : '', "<button class=\"btn\" data-act=\"fechar\">Fechar</button>\n    ").concat(est === 'solicitado' ? '<button class="btn pri" id="mChegou">Boleto chegou</button>' : '', "\n    ").concat(est === 'recebido' ? '<button class="btn laranja" id="mComp">Enviar comprovante</button>' : '', "</div>"));
     if (est === 'solicitado') {
       $('#mChegou').onclick = ev => {
         const btn = ev.currentTarget;
@@ -1597,7 +1600,7 @@ window.addEventListener('error', function (e) {
       tot = {
         novos: 0,
         atualizados: 0,
-        lojasNovas: 0
+        lojasNovas: 0, existentes: 0, ignorados: 0
       };
     (async () => {
       S.prog.fase = 'enviar';
@@ -1624,7 +1627,7 @@ window.addEventListener('error', function (e) {
           S.prog.aviso = '';
           tot.novos += r.novos;
           tot.atualizados += r.atualizados;
-          tot.lojasNovas += r.lojasNovas;
+          tot.lojasNovas += r.lojasNovas; tot.existentes += r.existentes || 0; tot.ignorados += r.ignorados || 0;
           S.prog.feitas = Math.min(cnpjs.length, i + LOTE);
           atualizaProg();
         }
@@ -1638,7 +1641,7 @@ window.addEventListener('error', function (e) {
         S.coords = null;   // coordenadores podem ter mudado com a planilha
         S.view = 'lojas';
         render();
-        toast("".concat(tot.novos, " novos, ").concat(tot.atualizados, " atualizados · ").concat(tot.lojasNovas, " lojas novas. Gere os códigos de acesso das lojas novas."));
+        toast(tot.novos + " veículos novos · " + tot.existentes + " já estavam na lista (não duplicados)" + (tot.ignorados ? " · " + tot.ignorados + " já finalizados" : "") + (tot.lojasNovas ? " · " + tot.lojasNovas + " lojas novas" : "") + ".");
       } catch (err) {
         const feitas = S.prog ? S.prog.feitas : 0;
         terminaProg();

@@ -53,7 +53,7 @@ window.DEMO = (function () {
       return out;
     },
     api_importarLote(rows) {
-      let novos = 0, atualizados = 0, lojasNovas = 0, ignorados = 0;
+      let novos = 0, atualizados = 0, lojasNovas = 0, ignorados = 0, existentes = 0;
       rows.forEach(r => {
         const cnpj = String(r.cnpj).replace(/\D/g, '').padStart(14, '0');
         let l = lojas.find(x => x.cnpj === cnpj);
@@ -62,12 +62,12 @@ window.DEMO = (function () {
         if (r.coordenador && !coords.find(c => c.nome === r.coordenador)) coords.push({ nome: r.coordenador, email: '', temSenha: false, codigo: '', codigoEm: '' });
         const id = r.placa + '_' + r.dtOferta;
         if (fim[cnpj + id]) { ignorados++; return; }
-        const ex = V.find(v => v.cnpj === cnpj && v.id === id);
+        const ex = V.find(v => v.cnpj === cnpj && v.placa === r.placa);
         const dados = { modelo: r.modelo, chassi: r.chassi, valorVenda: r.valorBoleto || 0, dtColeta: r.dtLiberacao || '', prazo: r.dtBoleto || '' };
-        if (ex) { Object.assign(ex, dados); atualizados++; }
+        if (ex) { Object.assign(ex, dados); existentes++; }
         else { novo(cnpj, r.placa, r.modelo, r.valorBoleto, r.dtOferta, dados); novos++; }
       });
-      return { novos, atualizados, lojasNovas, descartados: 0, ignorados };
+      return { novos, atualizados, lojasNovas, descartados: 0, ignorados, existentes };
     },
     api_gerarCodigo(cnpj) { const l = lojas.find(x => x.cnpj === cnpj); l.codigo = String(Math.floor(Math.random() * 1e6)).padStart(6, '0'); l.codigoEm = new Date().toISOString(); return { cnpj, codigo: l.codigo, codigo_em: l.codigoEm }; },
     api_coordListar() { return coords.map(c => Object.assign({ lojas: lojas.filter(l => l.coordenador === c.nome).length }, c)); },

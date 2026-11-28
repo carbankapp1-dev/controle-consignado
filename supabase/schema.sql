@@ -301,9 +301,9 @@ end $$;
 create or replace function cc_importar_lote(p_rows jsonb) returns json
 language plpgsql security definer set search_path = public as $$
 declare
-  r record; v_placa text; v_cnpj text; v_nome text; v_id text; ex veiculos; v_lib date; v_bol date; v_nova boolean;
+  r record; v_placa text; v_cnpj text; v_nome text; v_id text; ex veiculos; v_lib date; v_bol date; v_nova boolean; v_tem boolean;
   iso text := '^\d{4}-\d{2}-\d{2}$';
-  n_novos int := 0; n_atual int := 0; n_lojas int := 0; n_desc int := 0; n_ign int := 0;
+  n_novos int := 0; n_atual int := 0; n_lojas int := 0; n_desc int := 0; n_ign int := 0; n_exist int := 0;
 begin
   perform cc_exige_admin();
   for r in select * from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb))
@@ -330,12 +330,15 @@ begin
     returning (xmax = 0) into v_nova;   -- true quando a loja é nova
     if v_nova then n_lojas := n_lojas + 1; end if;
 
-    if exists (select 1 from finalizados where cnpj = v_cnpj and id = v_id) then
+    -- o mesmo carro é identificado pela PLACA dentro da loja (a data da oferta pode variar entre planilhas)
+    select * into ex from veiculos where cnpj = v_cnpj and placa = v_placa order by ordem desc limit 1;
+    v_tem := found;
+    if v_tem then
+      n_exist := n_exist + 1;
+    elsif exists (select 1 from finalizados where cnpj = v_cnpj and (id = v_id or split_part(id, '_', 1) = v_placa)) then
       n_ign := n_ign + 1; continue;
     end if;
-
-    select * into ex from veiculos where cnpj = v_cnpj and id = v_id;
-    if found then
+    if v_tem then
       if ex.modelo is distinct from trim(coalesce(r.modelo, '')) or ex.chassi is distinct from upper(trim(coalesce(r.chassi, '')))
          or ex.loja is distinct from v_nome
          or (coalesce(r."valorBoleto", 0) > 0 and ex.valor_venda <> round(r."valorBoleto", 2))
@@ -343,7 +346,7 @@ begin
         update veiculos set modelo = trim(coalesce(r.modelo, '')), chassi = upper(trim(coalesce(r.chassi, ''))), loja = v_nome,
           valor_venda = case when coalesce(r."valorBoleto", 0) > 0 then round(r."valorBoleto", 2) else valor_venda end,
           dt_coleta = coalesce(v_lib, dt_coleta), prazo = coalesce(v_bol, prazo), atualizado_em = now()
-        where cnpj = v_cnpj and id = v_id;
+        where cnpj = v_cnpj and id = ex.id;
         n_atual := n_atual + 1;
       end if;
     else
@@ -354,8 +357,32 @@ begin
     end if;
   end loop;
   return json_build_object('novos', n_novos, 'atualizados', n_atual, 'lojasNovas', n_lojas,
-                           'descartados', n_desc, 'ignorados', n_ign);
+                           'descartados', n_desc, 'ignorados', n_ign, 'existentes', n_exist);
 end $$;
+
+-- ---------- limpeza: o mesmo carro (placa) repetido na mesma loja ----------
+-- Fica a linha que já tem andamento (boleto/documento/rastreio); empate: a mais recente.
+-- Ela recebe os dados de planilha da linha mais recente (modelo, chassi, valor, datas). As outras são apagadas.
+create or replace function cc_limpar_duplicados() returns int
+language plpgsql security definer set search_path = public as $$
+declare g record; k veiculos; nv veiculos; n int := 0;
+begin
+  for g in select cnpj, placa from veiculos group by cnpj, placa having count(*) > 1 loop
+    select * into k from veiculos where cnpj = g.cnpj and placa = g.placa
+      order by (boleto_status <> '' or doc_status <> '' or rastreio <> '') desc, ordem desc limit 1;
+    select * into nv from veiculos where cnpj = g.cnpj and placa = g.placa order by ordem desc limit 1;
+    if nv.id <> k.id then
+      update veiculos set modelo = nv.modelo, chassi = coalesce(nullif(nv.chassi, ''), chassi),
+        valor_venda = case when nv.valor_venda > 0 then nv.valor_venda else valor_venda end,
+        dt_oferta = nv.dt_oferta, dt_coleta = coalesce(nv.dt_coleta, dt_coleta), prazo = coalesce(nv.prazo, prazo), atualizado_em = now()
+      where cnpj = k.cnpj and id = k.id;
+    end if;
+    delete from veiculos where cnpj = g.cnpj and placa = g.placa and id <> k.id;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+select cc_limpar_duplicados();
 
 -- ---------- administrador: dados da versão antiga (Google Script) ----------
 -- p: {lojas:[{cnpj,nome}], veiculos:[{...campos da planilha antiga...}], finalizados:[{cnpj,id}]}
@@ -456,8 +483,8 @@ begin
   if v_modelo = '' then raise exception 'Informe o modelo.'; end if;
   if not (v_valor > 0) or v_valor > 99999999 then raise exception 'Informe um valor do boleto válido.'; end if;
   if v_dt !~ iso then raise exception 'Informe a data da oferta.'; end if;
-  if exists (select 1 from veiculos where cnpj = p_cnpj and id = v_placa || '_' || v_dt) then
-    raise exception 'Este veículo (placa e data da oferta) já está na lista.';
+  if exists (select 1 from veiculos where cnpj = p_cnpj and (placa = v_placa or id = v_placa || '_' || v_dt)) then
+    raise exception 'Esta placa já está na lista desta loja.';
   end if;
   insert into veiculos (cnpj, id, placa, modelo, chassi, valor_venda, dt_oferta, loja, dt_coleta, prazo)
   values (p_cnpj, v_placa || '_' || v_dt, v_placa, v_modelo, upper(trim(coalesce(p_dados ->> 'chassi', ''))), v_valor,
@@ -534,7 +561,7 @@ create or replace function cc_finalizar(p_cnpj text, p_id text) returns json
 language plpgsql security definer set search_path = public as $$
 declare v veiculos := cc_pega(p_cnpj, p_id);
 begin
-  if v.doc_status <> 'enviado' then raise exception 'Preencha antes a data em que o boleto foi enviado.'; end if;
+  if v.boleto_status not in ('recebido', 'pago') and v.doc_status <> 'enviado' then raise exception 'Disponível depois que o boleto chegar.'; end if;
   insert into finalizados (cnpj, id, motivo) values (p_cnpj, p_id, 'finalizado') on conflict (cnpj, id) do nothing;
   delete from veiculos where cnpj = p_cnpj and id = p_id;
   return json_build_object('ok', true);
