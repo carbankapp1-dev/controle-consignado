@@ -412,7 +412,11 @@
     body.v2 .cab > div, body.v2 .row > .c { text-align: center; }
     body.v2 .row > .c-modelo, body.v2 .row > .c-modelo strong, body.v2 .row > .c-modelo small { text-align: left; }
     body.v2 .c input.vv { text-align: center; padding-right: 24px; }
+    /* botões de Boleto e Documento: largura fixa e centralizados sob o título */
+    body.v2 .row > .c[data-l="Boleto"] .stbtn, body.v2 .row > .c[data-l="Documento"] .stbtn { width: 120px; margin-left: auto; margin-right: auto; }
   }
+  /* barra de filtros (Todos, Sem boleto...) oculta */
+  body.v2 .filtros { display: none; }
   /* nome da loja no topo: mesmo formato dos botões Trocar senha / Sair */
   body.v2 .chip-loja { background: #fff; border: 1px solid #cfd5dc; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: #111741; }
   body.v2 .chip-loja small { color: #4a5565; font-weight: 500; }
@@ -429,9 +433,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=19"></script>
-<script src="js/demo.js?v=19"></script>
-<script src="js/api.js?v=19"></script>
+<script src="js/config.js?v=20"></script>
+<script src="js/demo.js?v=20"></script>
+<script src="js/api.js?v=20"></script>
 </head>
 <body>
 <header class="topo">
