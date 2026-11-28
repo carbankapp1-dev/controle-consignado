@@ -24,7 +24,7 @@ window.DEMO = (function () {
   novo('11222333000181', 'FGH4J56', 'T-CROSS 200 TSI', 118500, diasAtras(95));
   novo('11222333000181', 'KLM7N89', 'NIVUS HIGHLINE', 129900, diasAtras(40), {
     boletoStatus: 'solicitado', boletoEnviadoEm: new Date(Date.now() - 80 * 3600e3).toISOString(), placaBoleto: 'KLM7N89' });
-  novo('11222333000181', 'PQR0S12', 'VIRTUS EXCLUSIVE', 109000, diasAtras(50), {
+  novo('11222333000181', 'PQR0S12', 'VIRTUS EXCLUSIVE', 109000, diasAtras(110), {
     boletoStatus: 'recebido', boletoEnviadoEm: new Date(Date.now() - 200 * 3600e3).toISOString(), placaBoleto: 'PQR0S12' });
   novo('11222333000181', 'TUV3W45', 'SAVEIRO CROSS', 98000, diasAtras(60), {
     boletoStatus: 'recebido', boletoEnviadoEm: new Date(Date.now() - 400 * 3600e3).toISOString(), placaBoleto: 'TUV3W45',

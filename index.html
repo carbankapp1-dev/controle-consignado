@@ -343,12 +343,55 @@
   .btn-google { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cfd5dc; background: #fff; border-radius: 10px; padding: 11px 20px; font: inherit; font-weight: 600; cursor: pointer; color: #1f2d3d; }
   .btn-google:hover { background: #f6f7f9; }
   .demo-tag { display: inline-block; background: #fff3cd; color: #8a5a00; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-left: 8px; }
+  /* ===== layout novo (prévia: ?layout=novo) ===== */
+  body.v2 { --cinza-500: #4a5565; --cinza-300: #b4bcc8; --cinza-200: #d3d8e0; background: #eceff4; }
+  body.v2 .cab { position: sticky; top: var(--topoH, 0px); z-index: 5; background: #eceff4; padding-top: 10px; font-size: 11.5px; color: #2f3a4a; }
+  body.v2 .card { border: 1px solid #d3d8e0; box-shadow: 0 1px 2px rgba(17,23,65,.06); }
+  body.v2 .card:hover { border-color: #111741; box-shadow: 0 4px 14px rgba(17,23,65,.12); }
+  body.v2 .row { padding: 14px 16px; }
+  body.v2 .c strong { font-size: 14.5px; font-weight: 800; color: #111741; }
+  body.v2 .c-modelo small.chassi { color: #4a5565; font-size: 11.5px; }
+  body.v2 .plate { font-size: 14px; padding: 4px 10px; border-width: 2px; }
+  body.v2 .c[data-l="Data Oferta"], body.v2 .c[data-l="Data da Liberação"], body.v2 .c[data-l="Data Boleto"] { color: #1f2937; font-weight: 600; font-size: 13.5px; }
+  body.v2 .c[data-l="Data Boleto"] { font-weight: 800; }
+  /* valor: parece texto; vira caixa só ao passar o mouse/clicar */
+  body.v2 .c input.vv { border-color: transparent; background: transparent; font-size: 14.5px; font-weight: 800; color: #111741; padding-left: 2px; cursor: pointer; }
+  body.v2 .c input.vv:hover { border-color: #b4bcc8; background: #fff; }
+  body.v2 .c input.vv:focus { border-color: #111741; background: #fff; cursor: text; }
+  body.v2 .cpv { opacity: .8; }
+  /* dias */
+  body.v2 .dias { min-width: 54px; font-size: 18px; }
+  body.v2 .dias.ok { background: #dff6e9; color: #0f6b38; }
+  body.v2 .dias.warn { background: #ffe6a6; color: #7a4b00; }
+  body.v2 .dias.danger { background: #fde0de; color: #a3160c; }
+  body.v2 .dias.vencido { background: #d32f2f; color: #fff; }
+  /* status do boleto com cor que tem significado */
+  body.v2 .stbtn { height: 40px; font-size: 13.5px; }
+  body.v2 .stbtn.idle { background: #111741; border-color: #111741; color: #fff; }
+  body.v2 .stbtn.idle:hover { background: #24306e; }
+  body.v2 .stbtn.wait { background: #fff4d6; border-color: #e0a100; color: #7a4b00; }
+  body.v2 .stbtn.wait .dot { background: #e0a100; }
+  body.v2 .stbtn.ok, body.v2 .stbtn.pago { background: #1c9a55; border-color: #1c9a55; color: #fff; }
+  body.v2 .stbtn.fin { background: #fff; border: 2px solid #111741; color: #111741; font-size: 12px; }
+  body.v2 .stbtn.fin:hover:not(:disabled) { background: #111741; color: #fff; }
+  body.v2 .stbtn.fin:disabled { opacity: 1; background: #f3f5f8; border: 1.5px dashed #b4bcc8; color: #7b8596; }
+  body.v2 .stbtn .cad { width: 12px; height: 12px; flex: none; }
+  /* filtros */
+  body.v2 .fchip { border-color: #b4bcc8; color: #1f2937; font-size: 13px; padding: 6px 13px; }
+  body.v2 .fchip b { background: #e3e7ee; color: #111741; }
+  body.v2 .fchip.on { background: #111741; border-color: #111741; color: #fff; }
+  @media (min-width: 1181px) { body.v2 .cab, body.v2 .row { grid-template-columns: 104px minmax(170px,1.7fr) 146px 92px 128px 104px 66px 132px 122px 34px; } }
+  @media (max-width: 1180px) { body.v2 .cab { position: static; } }
+  body.v2 .fchip.on b { background: #46da86; color: #111741; }
+  body.v2 .info-loja { border-left-width: 6px; }
+  body.v2 .info-loja .il-nome { font-size: 16px; }
+  body.v2 .info-loja span { color: #4a5565; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=6"></script>
-<script src="js/demo.js?v=6"></script>
-<script src="js/api.js?v=6"></script>
+<script src="js/config.js?v=7"></script>
+<script src="js/demo.js?v=7"></script>
+<script src="js/api.js?v=7"></script>
 </head>
 <body>
 <header class="topo">
@@ -382,6 +425,13 @@ window.addEventListener('error', function (e) {
   if (__c && __c.lastChild) __c.lastChild.textContent = "Carregando… (etapa 2: programa iniciado)";
   const INICIAL = null;
   const URL_FORM_BOLETO = window.CFG.URL_FORM_BOLETO;
+  // prévia do layout novo: só com ?layout=novo no endereço
+  const V2 = new URLSearchParams(location.search).get('layout') === 'novo';
+  if (V2) {
+    document.body.classList.add('v2');
+    const alturaTopo = () => { const t = document.querySelector('.topo'); if (t) document.documentElement.style.setProperty('--topoH', t.offsetHeight + 'px'); };
+    window.addEventListener('resize', alturaTopo); setTimeout(alturaTopo, 0); setTimeout(alturaTopo, 1500);
+  }
   const URL_CORREIOS = 'https://rastreamento.correios.com.br/app/index.php';
   const UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
   const S = {
@@ -566,7 +616,7 @@ window.addEventListener('error', function (e) {
       cls: 'muted'
     };
     const n = diff(v.prazo, S.d.hoje);
-    const cls = n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
+    const cls = n < 0 ? 'danger vencido' : n <= 7 ? 'danger' : n <= 15 ? 'warn' : 'ok';
     return {
       n,
       txt: String(n),
@@ -671,12 +721,12 @@ window.addEventListener('error', function (e) {
     if (v.boletoStatus === 'recebido') return "<button class=\"stbtn ok\" ".concat(s, " title=\"Boleto recebido — falta enviar o comprovante\">").concat(I.check, "Boleto</button>");
     if (v.boletoStatus === 'solicitado' && S.chk && S.chk[v.k]) return "<button class=\"stbtn wait chk\" " + s + " title=\"Clique para verificar de novo\"><span class=\"dot\"></span>Verifique e-mail</button>";
     if (v.boletoStatus === 'solicitado') return "<button class=\"stbtn wait\" ".concat(s, " title=\"Aguardando o boleto chegar\"><span class=\"dot\"></span>Aguardando</button>");
-    return "<button class=\"stbtn idle\" ".concat(s, " title=\"Solicitar boleto\">Boleto</button>");
+    return "<button class=\"stbtn idle\" ".concat(s, " title=\"Solicitar boleto\">").concat(V2 ? 'Solicitar boleto' : 'Boleto', "</button>");
   }
   function btnDocto(v) {
     const s = "data-act=\"finalizar\" data-id=\"" + esc(v.k) + "\"";
     if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') return "<button class=\"stbtn fin\" " + s + " title=\"Documento recebido: remove este veículo da lista\">Documento recebido</button>";
-    return "<button class=\"stbtn fin\" disabled title=\"Disponível depois que o boleto chegar\">Documento recebido</button>";
+    return "<button class=\"stbtn fin\" disabled title=\"Disponível depois que o boleto chegar\">" + (V2 ? '<svg class="cad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' : '') + "Documento recebido</button>";
   }
   // dias úteis (seg a sex) desde a data informada até hoje
   function diasUteisDesde(iso) {
