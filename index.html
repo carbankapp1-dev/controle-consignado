@@ -353,6 +353,11 @@
   .btn-google { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cfd5dc; background: #fff; border-radius: 10px; padding: 11px 20px; font: inherit; font-weight: 600; cursor: pointer; color: #1f2d3d; }
   .btn-google:hover { background: #f6f7f9; }
   .demo-tag { display: inline-block; background: #fff3cd; color: #8a5a00; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-left: 8px; }
+  /* ===== prévia: placa Mercosul (?placa=mercosul) ===== */
+  body.p-mercosul .plate.plate { position: relative; display: inline-block; min-width: 92px; text-align: center; padding: 10px 7px 2px; border: 2px solid #1b1b1b; border-radius: 5px; background: #fff; color: #111; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; font-size: 19px; line-height: 1.05; letter-spacing: .07em; box-shadow: 0 1px 2px rgba(0,0,0,.15); overflow: hidden; }
+  body.p-mercosul .plate.plate::before { content: 'BRASIL'; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #1e4aa0; color: #fff; font: 700 5.5px/8px Arial, sans-serif; letter-spacing: .22em; text-align: center; }
+  body.p-mercosul .plate.plate::after { content: ''; position: absolute; top: 1.5px; right: 4px; width: 7px; height: 5px; border-radius: 1px; background: radial-gradient(circle, #1e4aa0 0 1.2px, transparent 1.4px), linear-gradient(135deg, transparent 2px, #ffd200 2px, #ffd200 5px, transparent 5px), #1a9b3c; }
+  body.p-mercosul .plate.cpy:hover { background: #f4f6fb; }
   /* ===== fonte Poppins (padrão; ?fonte=sistema desliga) ===== */
   body.f-poppins, body.f-poppins button, body.f-poppins input, body.f-poppins select { font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif; }
   body.f-poppins { font-size: 13.5px; }
@@ -403,9 +408,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=13"></script>
-<script src="js/demo.js?v=13"></script>
-<script src="js/api.js?v=13"></script>
+<script src="js/config.js?v=14"></script>
+<script src="js/demo.js?v=14"></script>
+<script src="js/api.js?v=14"></script>
 </head>
 <body>
 <header class="topo">
@@ -442,6 +447,12 @@ window.addEventListener('error', function (e) {
   // prévia do layout novo: só com ?layout=novo no endereço
   // layout novo é o padrão; ?layout=antigo volta o visual anterior
   const V2 = new URLSearchParams(location.search).get('layout') !== 'antigo';
+  // prévia da placa Mercosul: ?placa=mercosul
+  if (new URLSearchParams(location.search).get('placa') === 'mercosul') {
+    const lk = document.createElement('link'); lk.rel = 'stylesheet';
+    lk.href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&display=swap';
+    document.head.appendChild(lk); document.body.classList.add('p-mercosul');
+  }
   // fonte Poppins é o padrão (link no <head>); ?fonte=sistema usa a fonte do aparelho
   if (new URLSearchParams(location.search).get('fonte') !== 'sistema') document.body.classList.add('f-poppins');
   if (V2) {
