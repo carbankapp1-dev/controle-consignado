@@ -398,9 +398,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=11"></script>
-<script src="js/demo.js?v=11"></script>
-<script src="js/api.js?v=11"></script>
+<script src="js/config.js?v=12"></script>
+<script src="js/demo.js?v=12"></script>
+<script src="js/api.js?v=12"></script>
 </head>
 <body>
 <header class="topo">
@@ -719,6 +719,7 @@ window.addEventListener('error', function (e) {
     return S.loja ? d.bases.find(b => b.cnpj === S.loja) : null;
   }
   function infoLoja() {
+    if (S.d.role === 'loja') return '';   // a loja já vê nome e CNPJ no selo do topo
     const l = lojaEmFoco();
     if (!l && adm() && S.gcm && S.sel === '*') {
       const ls = lojasGcm();
