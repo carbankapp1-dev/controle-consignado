@@ -343,6 +343,10 @@
   .btn-google { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cfd5dc; background: #fff; border-radius: 10px; padding: 11px 20px; font: inherit; font-weight: 600; cursor: pointer; color: #1f2d3d; }
   .btn-google:hover { background: #f6f7f9; }
   .demo-tag { display: inline-block; background: #fff3cd; color: #8a5a00; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-left: 8px; }
+  /* ===== prévia de fonte: ?fonte=poppins ===== */
+  body.f-poppins, body.f-poppins button, body.f-poppins input, body.f-poppins select { font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif; }
+  body.f-poppins { font-size: 13.5px; }
+  body.f-poppins .cab { letter-spacing: .02em; font-size: 10.5px; white-space: nowrap; }
   /* ===== layout novo (prévia: ?layout=novo) ===== */
   body.v2 { --cinza-500: #4a5565; --cinza-300: #b4bcc8; --cinza-200: #d3d8e0; background: #eceff4; }
   body.v2 .cab { position: sticky; top: var(--topoH, 0px); z-index: 5; background: #eceff4; padding-top: 10px; font-size: 11.5px; color: #2f3a4a; }
@@ -427,6 +431,12 @@ window.addEventListener('error', function (e) {
   const URL_FORM_BOLETO = window.CFG.URL_FORM_BOLETO;
   // prévia do layout novo: só com ?layout=novo no endereço
   const V2 = new URLSearchParams(location.search).get('layout') === 'novo';
+  // prévia de fonte: ?fonte=poppins (carrega do Google Fonts só nesse caso)
+  if (new URLSearchParams(location.search).get('fonte') === 'poppins') {
+    const lk = document.createElement('link'); lk.rel = 'stylesheet';
+    lk.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(lk); document.body.classList.add('f-poppins');
+  }
   if (V2) {
     document.body.classList.add('v2');
     const alturaTopo = () => { const t = document.querySelector('.topo'); if (t) document.documentElement.style.setProperty('--topoH', t.offsetHeight + 'px'); };
