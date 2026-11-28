@@ -315,6 +315,11 @@
   .stbtn.chk .dot { background: #e6a800; }
   .sair { margin-left: 10px; background: #fff; border: 1px solid #cfd5dc; color: #111741; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .sair:hover { background: #f6f7f9; }
+  .stbtn.pgto { background: #ffd600; border-color: #e6c000; color: #3d2e00; }
+  body .stbtn.stbtn.pgto, body .stbtn.stbtn.vence { white-space: nowrap; font-size: 12.5px; padding: 0 6px; }
+  .stbtn.pgto:hover { background: #ffcc00; }
+  .stbtn.vence { background: #d32f2f; border-color: #d32f2f; color: #fff; }
+  .stbtn.vence:hover { background: #b71c1c; }
   .btn.pisca { animation: piscaBtn 1.1s ease-in-out infinite; }
   @keyframes piscaBtn { 0%, 100% { box-shadow: 0 0 0 0 rgba(70,218,134,.75); background: #111741; } 50% { box-shadow: 0 0 0 7px rgba(70,218,134,0); background: #1c9a55; border-color: #1c9a55; } }
   .m-tit { margin: 0 0 6px; font-size: 18px; color: var(--azul); }
@@ -407,9 +412,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=15"></script>
-<script src="js/demo.js?v=15"></script>
-<script src="js/api.js?v=15"></script>
+<script src="js/config.js?v=16"></script>
+<script src="js/demo.js?v=16"></script>
+<script src="js/api.js?v=16"></script>
 </head>
 <body>
 <header class="topo">
@@ -650,7 +655,7 @@ window.addEventListener('error', function (e) {
     const i = diasInfo(v);
     return i.n !== null && i.n <= 15;
   };
-  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Boleto chegou', v => etapa(v) === 'recebido'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
+  const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Aguardando pgto', v => etapa(v) === 'recebido'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
   // filtro de GCM (administrador e coordenador)
   const lojasGcm = () => S.d.lojas.filter(l => !S.gcm || l.gcm === S.gcm);
   const listaGcms = () => [...new Set(S.d.lojas.map(l => l.gcm).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -740,10 +745,21 @@ window.addEventListener('error', function (e) {
     const it = (r, v) => v ? '<span>' + r + ' <b>' + esc(v) + '</b></span>' : '';
     return '<div class="info-loja"><div class="il-nome">' + esc(l.nome) + '</div>' + it('CNPJ', fcnpj(l.cnpj)) + it('Nº DN', l.nDn) + it('GCM', l.gcm) + it('Coordenador', l.coordenador) + '</div>';
   }
+  // dias até o vencimento do boleto (null = sem data)
+  const diasVenc = v => v.boletoVencimento ? diff(String(v.boletoVencimento).slice(0, 10), S.d.hoje) : null;
+  function contVenc(v) {
+    if (v.boletoStatus !== 'recebido' && v.boletoStatus !== 'pago') return '';
+    if (!v.boletoVencimento) return '<span class="cont atraso" title="Clique no botão para informar">informe o vencimento</span>';
+    const n = diasVenc(v);
+    return '<span class="cont' + (n <= 0 ? ' atraso' : '') + '">' + (n < 0 ? 'venceu ' : 'vence ') + fdata(v.boletoVencimento).slice(0, 5) + '</span>';
+  }
   function btnBoleto(v) {
     const s = "data-act=\"boleto\" data-id=\"".concat(esc(v.k), "\"");
-    if (v.boletoStatus === 'pago') return "<button class=\"stbtn pago\" ".concat(s, " title=\"Comprovante enviado\">").concat(I.check2, "Boleto</button>");
-    if (v.boletoStatus === 'recebido') return "<button class=\"stbtn ok\" ".concat(s, " title=\"Boleto recebido — falta enviar o comprovante\">").concat(I.check, "Boleto</button>");
+    if (v.boletoStatus === 'pago' || v.boletoStatus === 'recebido') {
+      const n = diasVenc(v);
+      if (n !== null && n <= 0) return '<button class="stbtn vence" ' + s + ' title="Clique para ver ou corrigir a data de vencimento">' + (n === 0 ? 'Vence hoje' : 'Boleto vencido') + '</button>';
+      return '<button class="stbtn pgto" ' + s + ' title="Boleto chegou. Clique para ver ou corrigir a data de vencimento">Aguardando pgto</button>';
+    }
     if (v.boletoStatus === 'solicitado' && S.chk && S.chk[v.k]) return "<button class=\"stbtn wait chk\" " + s + " title=\"Clique para verificar de novo\"><span class=\"dot\"></span>Verifique e-mail</button>";
     if (v.boletoStatus === 'solicitado') return "<button class=\"stbtn wait\" ".concat(s, " title=\"Aguardando o boleto chegar\"><span class=\"dot\"></span>Aguardando</button>");
     return "<button class=\"stbtn idle\" ".concat(s, " title=\"Solicitar boleto\">").concat(V2 ? 'Solicitar boleto' : 'Boleto', "</button>");
@@ -786,7 +802,7 @@ window.addEventListener('error', function (e) {
     const di = diasInfo(v),
       id = esc(v.k);
     const dls = v.boletoArquivos.map(f => "<button class=\"dl\" data-act=\"baixar\" data-id=\"".concat(id, "\" data-f=\"").concat(esc(f.id), "\" title=\"Baixar boleto\">").concat(I.baixar).concat(esc(f.name), "</button>")).join('');
-    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\">").concat(fdata(v.dtColeta), "</div>\n    <div class=\"c\" data-l=\"Data Boleto\">" + fdata(v.prazo) + "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : '', "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat('', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat("\n</article>");
+    return "<article class=\"card ".concat(etapa(v) === 'docto' ? 'entregue' : '', "\" data-id=\"").concat(id, "\">\n  <div class=\"row\">\n    <div class=\"c c-placa\" data-l=\"Placa\"><span class=\"plate cpy\" data-act=\"cpPlaca\" data-id=\"").concat(id, "\" title=\"Clique para copiar a placa\">").concat(esc(v.placa), "</span></div>\n    <div class=\"c c-modelo\" data-l=\"Modelo\"><strong title=\"").concat(esc(v.modelo), "\">").concat(esc(v.modelo), "</strong>").concat(v.chassi ? '<small class="chassi" data-act="cpChassi" data-id="' + id + '" title="Clique para copiar o chassi">' + esc(v.chassi) + '</small>' : '').concat((adm() ? S.sel === '*' : S.d.bases.length > 1) ? "<small>".concat(esc(v.loja), "</small>") : '', "</div>\n    <div class=\"c\" data-l=\"Valor do Boleto\"><input type=\"text\" class=\"vv").concat((Number(v.valorVenda) || 0) > 0 ? '' : ' zero', "\" data-mask=\"money\" data-chg=\"valor\" data-id=\"").concat(id, "\" value=\"").concat(esc(mask.money(String(Math.round((Number(v.valorVenda) || 0) * 100)))), "\" title=\"Clique para editar o valor do boleto\"><button class=\"cpv\" data-act=\"cpValor\" data-id=\"").concat(id, "\" title=\"Copiar valor\" aria-label=\"Copiar valor\">").concat(I.copiar, "</button></div>\n    <div class=\"c\" data-l=\"Data Oferta\">").concat(fdata(v.dtOferta), "</div>\n    <div class=\"c\" data-l=\"Data da Liberação\">").concat(fdata(v.dtColeta), "</div>\n    <div class=\"c\" data-l=\"Data Boleto\">" + fdata(v.prazo) + "</div>\n    <div class=\"c\" data-l=\"Dias\">").concat(di.n === null ? '<span class="muted">—</span>' : "<span class=\"dias ".concat(di.cls, "\" title=\"").concat(di.n < 0 ? 'Prazo vencido' : 'Dias restantes até a Data Boleto', "\">").concat(di.txt, "<small>").concat(di.n < 0 ? 'vencido' : 'dias', "</small></span>"), "</div>\n    <div class=\"c\" data-l=\"Boleto\">").concat(btnBoleto(v)).concat(v.boletoStatus === 'solicitado' ? (v.placaBoleto ? contadorHoras(v.boletoEnviadoEm, 72) : contador(v.boletoEnviadoEm, 3, 'boleto')) : contVenc(v), "</div>\n    <div class=\"c\" data-l=\"Documento\">").concat(btnDocto(v)).concat('', "</div>\n    <div class=\"c c-del\"><button class=\"ibtn del\" data-act=\"excluir\" data-id=\"").concat(id, "\" title=\"Excluir este veículo da lista\" aria-label=\"Excluir ").concat(esc(v.placa), "\">").concat(I.lixo, "</button></div>\n  </div>\n  ").concat("\n</article>");
   }
 
   /* ---------- ações na lista ---------- */
@@ -890,7 +906,7 @@ window.addEventListener('error', function (e) {
     },
     boleto(el) {
       const v = getV(el.dataset.id);
-      if (v.boletoStatus === 'recebido') return;   // comprovante agora é enviado direto pelo e-mail do usuário
+      if (v.boletoStatus === 'recebido' || v.boletoStatus === 'pago') return modalVencimento(v, false);
       v.boletoStatus ? modalBoletoStatus(v) : modalPlaca(v);
     },
     docto(el) {
@@ -1284,6 +1300,23 @@ window.addEventListener('error', function (e) {
       });
     };
   }
+  // data de vencimento do boleto: pedida ao marcar "Boleto chegou" e editável depois
+  function modalVencimento(v, chegou) {
+    abreModal(mHead(chegou ? 'Boleto chegou' : 'Vencimento do boleto', esc(v.placa) + ' · ' + esc(v.modelo)) +
+      '<div class="m-body" id="mf"><div class="info az">Informe a <b>data de vencimento</b> que está no boleto. O botão fica <b>amarelo (Aguardando pgto)</b> e, no dia do vencimento, fica <b>vermelho</b>.</div>' +
+      '<div class="grid">' + F('venc', 'Data de vencimento do boleto', { type: 'date', req: 1, v: String(v.boletoVencimento || '').slice(0, 10) }) + '</div></div>' +
+      '<div class="m-foot"><button class="btn" data-act="fechar">Cancelar</button><button class="btn pri" id="mVenc">' + (chegou ? 'Salvar e marcar como chegou' : 'Salvar') + '</button></div>', true);
+    $('#mVenc').onclick = ev => {
+      const venc = $('#mf [data-k=venc]').value;
+      if (!/^20\d{2}-\d{2}-\d{2}$/.test(venc)) { $('#mf [data-k=venc]').classList.add('erro'); return toast('Informe a data de vencimento do boleto.', true); }
+      busy(ev.currentTarget, async () => {
+        const nv = await srv(chegou ? 'api_boletoChegou' : 'api_salvarVencimento', v.f, v.id, venc);
+        fechaModal();
+        atualiza(nv);
+        toast(chegou ? 'Boleto chegou. Vencimento em ' + fdata(venc) + '.' : 'Vencimento atualizado: ' + fdata(venc) + '.');
+      });
+    };
+  }
   function abrirFormulario(placa) {
     // abre já no clique (senão o navegador bloqueia a nova aba) e copia a placa para colar lá
     const a = document.createElement('a');
@@ -1418,12 +1451,7 @@ window.addEventListener('error', function (e) {
     if (est === 'solicitado') {
       $('#mChegou').onclick = ev => {
         const btn = ev.currentTarget;
-        avisoBeneficiario(() => busy(btn, async () => {
-          const nv = await srv('api_boletoChegou', v.f, v.id);
-          fechaModal();
-          atualiza(nv);
-          toast('Boleto marcado como recebido.');
-        }));
+        avisoBeneficiario(() => modalVencimento(v, true));
       };
     }
     if (est === 'recebido') {

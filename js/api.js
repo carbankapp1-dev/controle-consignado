@@ -28,7 +28,7 @@ window.API = (function () {
       valorVenda: Number(r.valor_venda) || 0, hodometro: r.hodometro || '', laudo: r.laudo || '',
       dtOferta: r.dt_oferta || '', loja: r.loja || '', cnpj: r.cnpj, dtColeta: r.dt_coleta || '', prazo: r.prazo || '',
       boletoStatus: r.boleto_status || '', boletoEnviadoEm: r.boleto_enviado_em || '', placaBoleto: r.placa_boleto || '',
-      docStatus: r.doc_status || '', docEnviadoEm: r.doc_enviado_em || '', rastreio: r.rastreio || '',
+      boletoVencimento: r.boleto_vencimento || '', docStatus: r.doc_status || '', docEnviadoEm: r.doc_enviado_em || '', rastreio: r.rastreio || '',
       boletoArquivos: [], lembretes: 0, lembretePausado: '', dados: {}
     };
   }
@@ -78,7 +78,8 @@ window.API = (function () {
     api_salvarValor: async (f, id, valor) => pub(await rpc('cc_salvar_valor', { p_cnpj: f, p_id: id, p_valor: valor })),
     api_incluirVeiculo: async (f, dados) => pub(await rpc('cc_incluir_veiculo', { p_cnpj: f, p_dados: dados })),
     api_iniciarBoleto: async (f, id, placa) => pub(await rpc('cc_iniciar_boleto', { p_cnpj: f, p_id: id, p_placa: placa })),
-    api_boletoChegou: async (f, id) => pub(await rpc('cc_boleto_chegou', { p_cnpj: f, p_id: id })),
+    api_boletoChegou: async (f, id, venc) => pub(await rpc('cc_boleto_chegou', { p_cnpj: f, p_id: id, p_venc: venc })),
+    api_salvarVencimento: async (f, id, venc) => pub(await rpc('cc_salvar_vencimento', { p_cnpj: f, p_id: id, p_venc: venc })),
     api_desfazerBoleto: async (f, id) => pub(await rpc('cc_desfazer_boleto', { p_cnpj: f, p_id: id })),
     api_salvarEnviadoEm: async (f, id, data) => pub(await rpc('cc_salvar_enviado_em', { p_cnpj: f, p_id: id, p_data: data || '' })),
     api_salvarRastreio: async (f, id, cod) => pub(await rpc('cc_salvar_rastreio', { p_cnpj: f, p_id: id, p_codigo: cod || '' })),

@@ -58,6 +58,7 @@ alter table lojas    add column if not exists n_dn        text not null default 
 alter table lojas    add column if not exists gcm         text not null default '';
 alter table lojas    add column if not exists coordenador text not null default '';   -- nome, em MAIÚSCULAS
 alter table veiculos add column if not exists chassi      text not null default '';
+alter table veiculos add column if not exists boleto_vencimento date;   -- informado ao marcar "Boleto chegou"
 
 -- coordenadores: veem e alteram só as lojas em que o nome deles está na coluna COORDENADOR
 create table if not exists cc_coordenadores (
@@ -590,14 +591,28 @@ begin
   return v;
 end $$;
 
--- a loja recebeu o boleto
-create or replace function cc_boleto_chegou(p_cnpj text, p_id text) returns veiculos
+-- a loja recebeu o boleto: informa a data de vencimento (o botão fica "Aguardando pgto"; no dia, vermelho)
+drop function if exists cc_boleto_chegou(text, text);
+create or replace function cc_boleto_chegou(p_cnpj text, p_id text, p_venc text) returns veiculos
 language plpgsql security definer set search_path = public as $$
 declare v veiculos := cc_pega(p_cnpj, p_id);
 begin
-  if v.boleto_status = 'solicitado' then
-    update veiculos set boleto_status = 'recebido', atualizado_em = now() where cnpj = p_cnpj and id = p_id returning * into v;
-  end if;
+  if coalesce(p_venc, '') !~ '^20\d{2}-\d{2}-\d{2}$' then raise exception 'Informe a data de vencimento do boleto.'; end if;
+  update veiculos set boleto_status = case when boleto_status = 'solicitado' then 'recebido' else boleto_status end,
+    boleto_vencimento = p_venc::date, atualizado_em = now()
+  where cnpj = p_cnpj and id = p_id returning * into v;
+  return v;
+end $$;
+
+-- corrigir a data de vencimento do boleto
+create or replace function cc_salvar_vencimento(p_cnpj text, p_id text, p_venc text) returns veiculos
+language plpgsql security definer set search_path = public as $$
+declare v veiculos := cc_pega(p_cnpj, p_id);
+begin
+  if v.boleto_status not in ('recebido', 'pago') and v.doc_status <> 'enviado' then raise exception 'O boleto ainda não chegou.'; end if;
+  if coalesce(p_venc, '') !~ '^20\d{2}-\d{2}-\d{2}$' then raise exception 'Informe a data de vencimento do boleto.'; end if;
+  update veiculos set boleto_vencimento = p_venc::date, atualizado_em = now()
+  where cnpj = p_cnpj and id = p_id returning * into v;
   return v;
 end $$;
 
@@ -670,7 +685,7 @@ grant execute on function cc_quem_sou(), cc_lojas(), cc_gerar_codigo(text), cc_i
   cc_coord_nome(), cc_eh_gestor(), cc_salvar_prazo(text, text, text),
   cc_gcm_nome(), cc_gcms_listar(), cc_gcm_salvar_email(text, text), cc_gcm_gerar_codigo(text),
   cc_salvar_coleta(text, text, text), cc_salvar_valor(text, text, numeric), cc_incluir_veiculo(text, jsonb),
-  cc_iniciar_boleto(text, text, text), cc_boleto_chegou(text, text), cc_desfazer_boleto(text, text),
+  cc_iniciar_boleto(text, text, text), cc_boleto_chegou(text, text, text), cc_salvar_vencimento(text, text, text), cc_desfazer_boleto(text, text),
   cc_salvar_enviado_em(text, text, text), cc_salvar_rastreio(text, text, text), cc_finalizar(text, text),
   cc_excluir(text, text), cc_meu_email(), cc_eh_admin(), cc_pode(text), cc_dominio()
   to authenticated;
