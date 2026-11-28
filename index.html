@@ -323,6 +323,11 @@
   .checklist li { position: relative; padding: 10px 12px 10px 38px; background: var(--cinza-50); border: 1px solid var(--cinza-200); border-radius: 10px; }
   .checklist li::before { content: '✓'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
   .checklist small { color: var(--cinza-500); }
+  .checklist li.it-cp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .checklist .it-val { font-weight: 600; color: var(--azul); }
+  .cp-item { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1.5px solid var(--cinza-300); background: #fff; font-size: 12px; font-weight: 600; color: var(--azul); }
+  .cp-item svg { width: 15px; height: 15px; }
+  .cp-item:hover { border-color: var(--azul); background: var(--azul-claro); }
   .ac-ok { color: var(--verde-forte); font-weight: 700; font-size: 12.5px; }
   .ac-no { color: var(--alerta); font-weight: 700; font-size: 12.5px; }
   .ac-cod { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
@@ -398,9 +403,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=12"></script>
-<script src="js/demo.js?v=12"></script>
-<script src="js/api.js?v=12"></script>
+<script src="js/config.js?v=13"></script>
+<script src="js/demo.js?v=13"></script>
+<script src="js/api.js?v=13"></script>
 </head>
 <body>
 <header class="topo">
@@ -960,6 +965,9 @@ window.addEventListener('error', function (e) {
         render();
       });
     },
+    copiarTxt(el) {
+      copiar(el.dataset.v).then(ok => toast(ok ? (el.dataset.r || 'Texto') + ' copiado: ' + el.dataset.v : 'Não foi possível copiar.', !ok));
+    },
     copiarEmail(el) {
       copiar(el.dataset.v).then(ok => toast(ok ? 'Copiado!' : 'Não foi possível copiar.', !ok));
     }
@@ -1050,7 +1058,7 @@ window.addEventListener('error', function (e) {
     }
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') fechaModal();
+    if (e.key === 'Escape' && !S.modalFixo) fechaModal();
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.dnovo) { e.preventDefault(); H.destAdd($('[data-act="destAdd"][data-t="' + e.target.dataset.dnovo + '"]')); }
     if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja' || e.target.dataset.chg === 'pessoaEmail')) e.target.blur();
   });
@@ -1093,12 +1101,13 @@ window.addEventListener('error', function (e) {
     document.body.style.overflow = 'hidden';
   }
   function fechaModal() {
+    S.modalFixo = false;
     $('#ov').classList.remove('on');
     $('#modal').innerHTML = '';
     document.body.style.overflow = '';
   }
   $('#ov').addEventListener('mousedown', e => {
-    if (e.target.id === 'ov') fechaModal();
+    if (e.target.id === 'ov' && !S.modalFixo) fechaModal();
   });
   const mHead = (t, sub) => "<div class=\"m-head\"><div><h2>".concat(t, "</h2>").concat(sub ? "<p>".concat(sub, "</p>") : '', "</div><button class=\"m-x\" data-act=\"fechar\" aria-label=\"Fechar\">×</button></div>");
   function F(k, label, o) {
@@ -1276,12 +1285,25 @@ window.addEventListener('error', function (e) {
     document.body.appendChild(a); a.click(); a.remove();
     try { navigator.clipboard.writeText(placa).catch(() => {}); } catch (e) { }
   }
+  const valorTxt = v => (Number(v.valorVenda) || 0).toFixed(2).replace('.', ',');
+  // linha da lista com o valor e um botão de copiar
+  function itemCopia(rotulo, mostra, copia, jaEsc) {
+    return '<li class="it-cp"><b>' + rotulo + ':</b> <span class="it-val">' + (jaEsc ? mostra : esc(mostra)) + '</span>' +
+      '<button type="button" class="cp-item" data-act="copiarTxt" data-v="' + esc(copia) + '" data-r="' + esc(rotulo) + '" title="Copiar">' + I.copiar + '<span>copiar</span></button></li>';
+  }
   function modalPlaca(v) {
+    const lj = S.d.lojas.find(l => l.cnpj === v.cnpj) || S.d.bases.find(b => b.cnpj === v.cnpj) || {};
+    const emailGcm = lj.gcmEmail || '';
+    S.modalFixo = true;   // fica aberto para copiar e colar: só fecha no Fechar / ×
     abreModal(mHead('Solicitar boleto', esc(v.placa) + ' · ' + esc(v.modelo)) +
       '<div class="m-body"><h3 class="m-tit">Agora vamos preencher o formulário de solicitação de boleto</h3>' +
-      '<p class="m-sub">Antes de abrir, tenha em mãos:</p><ul class="checklist">' +
-      '<li><b>Placa</b> <span class="plate">' + esc(v.placa) + '</span> <small>(é copiada ao abrir o formulário)</small></li>' +
+      '<p class="m-sub">Antes de abrir, tenha em mãos (clique em <b>copiar</b> para colar no formulário):</p><ul class="checklist">' +
+      itemCopia('Valor de venda', brl(v.valorVenda), valorTxt(v)) +
+      itemCopia('Valor do repasse', brl(v.valorVenda), valorTxt(v)) +
+      '<li><b>Comissão:</b> <span class="it-val">Não</span></li>' +
+      itemCopia('Placa', '<span class="plate">' + esc(v.placa) + '</span>', v.placa, true) +
       '<li><b>Hodômetro</b> (quilometragem atual)</li>' +
+      (emailGcm ? itemCopia('E-mail responsável banco VWFS', esc(emailGcm), emailGcm, true) : '<li><b>E-mail responsável banco VWFS:</b> <span class="it-val muted">não cadastrado — peça ao administrador</span></li>') +
       '<li><b>Dados do cliente</b> (comprador): nome, RG, e-mail e endereço completo</li>' +
       '<li><b>Dados da loja</b>: razão social, CNPJ, e-mail e endereço</li></ul>' +
       '<div class="info az" id="mJaInfo" hidden>Depois de enviar o formulário, clique em <b>Boleto solicitado</b> e o veículo passa para <b>Aguardando boleto</b>. Se só estava olhando, é só fechar.</div></div>' +

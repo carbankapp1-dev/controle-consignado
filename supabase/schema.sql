@@ -162,13 +162,14 @@ $$;
 drop function if exists cc_lojas();
 create or replace function cc_lojas()
 returns table (cnpj text, nome text, total bigint, tem_senha boolean, codigo text, codigo_em timestamptz,
-               n_dn text, gcm text, coordenador text)
+               n_dn text, gcm text, coordenador text, gcm_email text)
 language sql stable security definer set search_path = public as $$
   select l.cnpj, l.nome, (select count(*) from veiculos v where v.cnpj = l.cnpj),
          l.senha_criada_em is not null,
          case when cc_eh_gestor() then l.acesso_codigo else '' end,
          case when cc_eh_gestor() then l.acesso_codigo_em end,
-         l.n_dn, l.gcm, l.coordenador
+         l.n_dn, l.gcm, l.coordenador,
+         coalesce((select g.email from cc_gcms g where g.nome = l.gcm), '')   -- e-mail do GCM (vai no formulário do boleto)
   from lojas l
   where cc_pode(l.cnpj)
   order by l.nome

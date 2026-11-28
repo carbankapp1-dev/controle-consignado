@@ -38,7 +38,7 @@ window.DEMO = (function () {
   const visivel = l => perfil === 'admin' || (perfil === 'coord' ? l.coordenador === COORD : perfil === 'gcm' ? l.gcm === GCM : l.cnpj === '11222333000181');
   const pega = (f, id) => { const v = V.find(x => x.f === f && x.id === id); if (!v) throw new Error('Veículo não encontrado.'); return v; };
   const L = l => ({ cnpj: l.cnpj, nome: l.nome, fileId: l.cnpj, total: V.filter(v => v.cnpj === l.cnpj).length, liberado: l.senha, codigo: l.codigo, codigoEm: l.codigoEm,
-    nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador });
+    nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, gcmEmail: (gcms.find(g => g.nome === l.gcm) || {}).email || '' });
   const placaN = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   const fns = {
@@ -50,7 +50,7 @@ window.DEMO = (function () {
       let sel;
       if (perfil === 'loja') sel = vis;
       else { out.lojas = vis.map(L).sort((a, b) => a.nome.localeCompare(b.nome)); sel = opts.fileId === '*' ? vis : vis.filter(l => l.cnpj === opts.fileId); }
-      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, dados: {} }));
+      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, gcmEmail: (gcms.find(g => g.nome === l.gcm) || {}).email || '', dados: {} }));
       out.veiculos = V.filter(v => sel.some(l => l.cnpj === v.cnpj));
       return out;
     },

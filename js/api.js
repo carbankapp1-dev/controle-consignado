@@ -33,7 +33,7 @@ window.API = (function () {
     };
   }
   const loja = l => ({ cnpj: l.cnpj, nome: l.nome, fileId: l.cnpj, total: Number(l.total) || 0, liberado: !!l.tem_senha, codigo: l.codigo || '', codigoEm: l.codigo_em || '',
-    nDn: l.n_dn || '', gcm: l.gcm || '', coordenador: l.coordenador || '' });
+    nDn: l.n_dn || '', gcm: l.gcm || '', coordenador: l.coordenador || '', gcmEmail: l.gcm_email || '' });
 
   async function veiculosDe(cnpjs) {
     const out = [];
@@ -60,7 +60,7 @@ window.API = (function () {
         out.lojas = lojas;
         sel = opts.fileId === '*' ? lojas : opts.fileId ? lojas.filter(l => l.cnpj === opts.fileId) : [];
       } else sel = lojas;
-      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, dados: {} }));
+      out.bases = sel.map(l => ({ fileId: l.cnpj, nome: l.nome, cnpj: l.cnpj, nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador, gcmEmail: l.gcmEmail, dados: {} }));
       if (sel.length) out.veiculos = await veiculosDe(quem.role !== 'loja' && opts.fileId === '*' ? null : sel.map(l => l.cnpj));
       return out;
     },
