@@ -114,7 +114,7 @@ window.DEMO = (function () {
   return {
     demo: true,
     call(fn, ...args) { try { if (!fns[fn]) throw new Error('Função não disponível: ' + fn); return espera(fns[fn](...args)); } catch (e) { return Promise.reject(e); } },
-    iniciar() { return espera(fns.api_listar({})); },
+    iniciar() { return espera(fns.api_listar({ fileId: '*' })); },
     trocarSenha() { return espera(true); },
     sair() { location.href = location.pathname + ({ admin: '?demo=coord', coord: '?demo=gcm', gcm: '?demo=loja', loja: '?demo=1' })[perfil]; }
   };

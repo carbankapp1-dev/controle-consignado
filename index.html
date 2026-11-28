@@ -398,9 +398,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=10"></script>
-<script src="js/demo.js?v=10"></script>
-<script src="js/api.js?v=10"></script>
+<script src="js/config.js?v=11"></script>
+<script src="js/demo.js?v=11"></script>
+<script src="js/api.js?v=11"></script>
 </head>
 <body>
 <header class="topo">
@@ -1815,7 +1815,8 @@ window.addEventListener('error', function (e) {
     window.__ok = true;
     d.veiculos.forEach(norm);
     S.d = d;
-    S.view = d.role !== 'loja' ? 'lojas' : 'veiculos';
+    S.view = 'veiculos';
+    if (d.role !== 'loja') S.sel = '*';   // gestores já abrem com todas as lojas
     if (d.role === 'admin' && !d.lojas.length) S.view = 'importar';
     render();
   }

@@ -177,7 +177,7 @@ window.API = (function () {
       }
       const { data } = await sb.auth.getSession();
       if (!data.session) { telaLogin(''); return null; }
-      return fns.api_listar({});
+      return fns.api_listar({ fileId: '*' });   // gestores: todas as lojas (para a loja não muda nada)
     },
     async trocarSenha(nova) {
       const { error } = await sb.auth.updateUser({ password: nova });
