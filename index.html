@@ -404,6 +404,18 @@
   body.v2 .stbtn.fin:hover:not(:disabled) { background: #111741; color: #fff; }
   body.v2 .stbtn.fin:disabled { opacity: 1; background: #f3f5f8; border: 1.5px dashed #b4bcc8; color: #7b8596; }
   body.v2 .stbtn .cad { width: 12px; height: 12px; flex: none; }
+  /* documento ainda bloqueado: só a caixinha apagada, sem texto */
+  body.v2 .stbtn.fin:disabled { color: #f3f5f8; border-color: #d3d8e0; }
+  body.v2 .stbtn.fin:disabled .cad { display: none; }
+  /* títulos e colunas centralizados (computador) */
+  @media (min-width: 1181px) {
+    body.v2 .cab > div, body.v2 .row > .c { text-align: center; }
+    body.v2 .row > .c-modelo strong, body.v2 .row > .c-modelo small { text-align: center; }
+    body.v2 .c input.vv { text-align: center; padding-right: 24px; }
+  }
+  /* nome da loja no topo: mesmo formato dos botões Trocar senha / Sair */
+  body.v2 .chip-loja { background: #fff; border: 1px solid #cfd5dc; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: #111741; }
+  body.v2 .chip-loja small { color: #4a5565; font-weight: 500; }
   /* filtros */
   body.v2 .fchip { border-color: #b4bcc8; color: #1f2937; font-size: 13px; padding: 6px 13px; }
   body.v2 .fchip b { background: #e3e7ee; color: #111741; }
@@ -417,9 +429,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=17"></script>
-<script src="js/demo.js?v=17"></script>
-<script src="js/api.js?v=17"></script>
+<script src="js/config.js?v=18"></script>
+<script src="js/demo.js?v=18"></script>
+<script src="js/api.js?v=18"></script>
 </head>
 <body>
 <header class="topo">
