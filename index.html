@@ -398,9 +398,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=9"></script>
-<script src="js/demo.js?v=9"></script>
-<script src="js/api.js?v=9"></script>
+<script src="js/config.js?v=10"></script>
+<script src="js/demo.js?v=10"></script>
+<script src="js/api.js?v=10"></script>
 </head>
 <body>
 <header class="topo">
@@ -644,6 +644,7 @@ window.addEventListener('error', function (e) {
   const lojasGcm = () => S.d.lojas.filter(l => !S.gcm || l.gcm === S.gcm);
   const listaGcms = () => [...new Set(S.d.lojas.map(l => l.gcm).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   function selGcmHTML() {
+    if (S.d.role === 'gcm') return '';
     const gs = listaGcms();
     if (!gs.length) return '';
     return '<select class="sel-loja sel-gcm" data-chg="selGcm" title="Filtrar por GCM"><option value="">Todos os GCMs</option>' +
@@ -667,7 +668,7 @@ window.addEventListener('error', function (e) {
       pb = b.prazo || '9999';
     return pa.localeCompare(pb) || a.placa.localeCompare(b.placa);
   }
-  const adm = () => S.d.role === 'admin' || S.d.role === 'coord';   // telas de gestão
+  const adm = () => S.d.role === 'admin' || S.d.role === 'coord' || S.d.role === 'gcm';   // telas de gestão
   const admTotal = () => S.d.role === 'admin';                        // só o administrador (importar, coordenadores)
   async function carrega() {
     const d = await srv('api_listar', adm() && S.sel ? {
@@ -681,7 +682,7 @@ window.addEventListener('error', function (e) {
   function render() {
     const d = S.d;
     let chip;
-    if (admTotal()) chip = '<span class="chip-loja">Administrador</span>';else if (adm()) chip = '<span class="chip-loja">Coordenador<small>' + esc(d.nome || d.email) + '</small></span>';else if (d.bases.length === 1) chip = "<span class=\"chip-loja\">".concat(esc(d.bases[0].nome), "<small>").concat(esc(fcnpj(d.bases[0].cnpj)), "</small></span>");else chip = "<span class=\"chip-loja\">".concat(d.bases.length, " lojas<small>").concat(esc(d.email), "</small></span>");
+    if (admTotal()) chip = '<span class="chip-loja">Administrador</span>';else if (adm()) chip = '<span class="chip-loja">' + (d.role === 'gcm' ? 'GCM' : 'Coordenador') + '<small>' + esc(d.nome || d.email) + '</small></span>';else if (d.bases.length === 1) chip = "<span class=\"chip-loja\">".concat(esc(d.bases[0].nome), "<small>").concat(esc(fcnpj(d.bases[0].cnpj)), "</small></span>");else chip = "<span class=\"chip-loja\">".concat(d.bases.length, " lojas<small>").concat(esc(d.email), "</small></span>");
     $('#topoDir').innerHTML = chip + (API.demo ? '<span class="demo-tag">demonstração</span>' : '') + '<button class="sair" data-act="trocarSenha" title="Trocar a sua senha">Trocar senha</button><button class="sair" data-act="sair" title="Sair desta conta">Sair</button>';
     $('#tabs').innerHTML = adm() ? [['veiculos', 'Veículos'], ['importar', 'Importar planilha'], ['lojas', 'Lojas e acessos']].filter(([k]) => k !== 'importar' || admTotal()).map(([k, t]) => "<button class=\"tab ".concat(S.view === k ? 'on' : '', "\" data-act=\"aba\" data-k=\"").concat(k, "\">").concat(t, "</button>")).join('') : '';
     if (S.view === 'importar' && admTotal()) $('#main').innerHTML = viewImportar();else if (S.view === 'lojas' && adm()) $('#main').innerHTML = viewLojas();else if (S.view === 'destinos' && adm()) $('#main').innerHTML = viewDestinos();else $('#main').innerHTML = viewVeiculos();
@@ -803,16 +804,16 @@ window.addEventListener('error', function (e) {
     abrirForm(el) { const v = getV(el.dataset.id); abrirFormulario(v.placa); toast('Formulário aberto em nova aba. Placa ' + v.placa + ' copiada.'); },
     trocarSenha() { modalSenha(); },
     baixarModelo() { baixarModelo(); },
-    coordCodigo(el) {
-      const c = S.coords.find(x => x.nome === el.dataset.nome);
+    pessoaCodigo(el) {
+      const tipo = el.dataset.tipo, T = PESSOAS[tipo], c = pessoa(tipo, el.dataset.nome);
       if (!c) return;
-      if (!c.email) return toast('Cadastre antes o e-mail (usuário) do coordenador.', true);
+      if (!c.email) return toast('Cadastre antes o e-mail (usuário) do ' + T.um + '.', true);
       if (c.temSenha && !confirm(c.nome + ' já tem senha. Gerar um código novo para criar outra senha?')) return;
-      busy(el, async () => { const r = await srv('api_coordCodigo', c.nome); c.codigo = r.codigo; c.codigoEm = r.codigo_em; render(); toast('Código gerado: ' + r.codigo + '.'); });
+      busy(el, async () => { const r = await srv(T.codigo, c.nome); c.codigo = r.codigo; c.codigoEm = r.codigo_em; render(); toast('Código gerado: ' + r.codigo + '.'); });
     },
-    copiarCodCoord(el) {
-      const c = S.coords.find(x => x.nome === el.dataset.nome);
-      const msg = 'Acesso ao Controle Consignado (coordenador)\nLink: ' + location.origin + location.pathname + '\nUsuário: ' + c.email + '\nCódigo: ' + c.codigo + '\n\nNo primeiro acesso, clique em "Primeiro acesso / esqueci a senha", digite o usuário (e-mail), o código e crie a sua senha. O código vale 7 dias.';
+    pessoaCopiar(el) {
+      const tipo = el.dataset.tipo, T = PESSOAS[tipo], c = pessoa(tipo, el.dataset.nome);
+      const msg = 'Acesso ao Controle Consignado (' + T.um + ')\nLink: ' + location.origin + location.pathname + '\nUsuário: ' + c.email + '\nCódigo: ' + c.codigo + '\n\nNo primeiro acesso, clique em "Primeiro acesso / esqueci a senha", digite o usuário (e-mail), o código e crie a sua senha. O código vale 7 dias.';
       copiar(msg).then(ok => toast(ok ? 'Mensagem copiada! Cole no WhatsApp ou e-mail.' : 'Não foi possível copiar.', !ok));
     },
     gerarCodigo(el) {
@@ -1015,10 +1016,10 @@ window.addEventListener('error', function (e) {
         await carrega();
         render();
       });
-    } else if (k === 'coordEmail') {
-      const nome = el.dataset.nome;
-      srv('api_coordEmail', nome, el.value).then(r => {
-        const c = S.coords.find(x => x.nome === nome);
+    } else if (k === 'pessoaEmail') {
+      const nome = el.dataset.nome, tipo = el.dataset.tipo;
+      srv(PESSOAS[tipo].email, nome, el.value).then(r => {
+        const c = pessoa(tipo, nome);
         if (c) { c.email = r.email; }
         render();
         toast(r.email ? 'Usuário salvo: ' + r.email : 'E-mail removido.');
@@ -1050,7 +1051,7 @@ window.addEventListener('error', function (e) {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') fechaModal();
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.dnovo) { e.preventDefault(); H.destAdd($('[data-act="destAdd"][data-t="' + e.target.dataset.dnovo + '"]')); }
-    if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja' || e.target.dataset.chg === 'coordEmail')) e.target.blur();
+    if (e.key === 'Enter' && e.target.dataset && (e.target.dataset.chg === 'rastreio' || e.target.dataset.chg === 'valor' || e.target.dataset.chg === 'emailLoja' || e.target.dataset.chg === 'pessoaEmail')) e.target.blur();
   });
 
   /* ---------- modal ---------- */
@@ -1535,7 +1536,7 @@ window.addEventListener('error', function (e) {
         tot.veiculos += r.veiculos; tot.descartados += r.descartados;
       }
       await carrega();
-      S.coords = null;
+      S.pessoas = {};
       S.mig = { msg: 'Pronto! ' + tot.lojas + ' lojas novas, ' + tot.veiculos + ' veículos com andamento, ' + tot.finalizados + ' finalizados antigos' + (tot.descartados ? ', ' + tot.descartados + ' linhas ignoradas (sem loja ou sem data).' : '.') };
     } catch (e) { S.mig = { erro: 'A migração parou: ' + e.message + ' O que já entrou ficou salvo; pode escolher o arquivo de novo.' }; }
     render();
@@ -1701,7 +1702,7 @@ window.addEventListener('error', function (e) {
         S.imp = null;
         terminaProg();
         await carrega();
-        S.coords = null;   // coordenadores podem ter mudado com a planilha
+        S.pessoas = {};   // coordenadores e GCMs podem ter mudado com a planilha
         S.view = 'lojas';
         render();
         toast(tot.novos + " veículos novos · " + tot.existentes + " já estavam na lista (não duplicados)" + (tot.ignorados ? " · " + tot.ignorados + " já finalizados" : "") + (tot.lojasNovas ? " · " + tot.lojasNovas + " lojas novas" : "") + ".");
@@ -1755,19 +1756,36 @@ window.addEventListener('error', function (e) {
           '<button class="btn sm" data-act="verLoja" data-f="' + esc(l.fileId) + '">Ver veículos</button></td></tr>').join('') +
         '</tbody></table></div>' : '<div class="vazio" style="margin-top:16px">Nenhuma loja ainda. Elas são criadas automaticamente ao importar a planilha.</div>') + '</div>' + viewCoords();
   }
+  const PESSOAS = {
+    coord: { titulo: 'Coordenadores', um: 'coordenador', col: 'COORDENADOR', listar: 'api_coordListar', email: 'api_coordEmail', codigo: 'api_coordCodigo' },
+    gcm: { titulo: 'GCMs', um: 'GCM', col: 'GCM', listar: 'api_gcmListar', email: 'api_gcmEmail', codigo: 'api_gcmCodigo' }
+  };
+  const pessoa = (tipo, nome) => ((S.pessoas || {})[tipo] || []).find(x => x.nome === nome);
   function viewCoords() {
     if (!admTotal()) return '';
-    if (!S.coords) { srv('api_coordListar').then(c => { S.coords = c; if (S.view === 'lojas') render(); }).catch(x => toast(x.message, true)); return '<div class="painel coord-box"><h2>Coordenadores</h2><div class="muted">Carregando…</div></div>'; }
-    const cs = S.coords;
+    return viewPessoas('gcm') + viewPessoas('coord');
+  }
+  function viewPessoas(tipo) {
+    const T = PESSOAS[tipo];
+    S.pessoas = S.pessoas || {};
+    if (!S.pessoas[tipo]) {
+      if (!S.pessoas['_' + tipo]) {
+        S.pessoas['_' + tipo] = 1;
+        srv(T.listar).then(c => { S.pessoas[tipo] = c; if (S.view === 'lojas') render(); }).catch(x => { delete S.pessoas['_' + tipo]; toast(x.message, true); });
+      }
+      return '<div class="painel coord-box"><h2>' + T.titulo + '</h2><div class="muted">Carregando…</div></div>';
+    }
+    let cs = S.pessoas[tipo];
+    if (tipo === 'gcm' && S.gcm) cs = cs.filter(c => c.nome === S.gcm);
     const ac = c => (c.temSenha ? '<span class="ac-ok">✓ Senha criada</span>' : '<span class="ac-no">Sem senha</span>') +
-      (c.codigo ? '<div class="ac-cod"><b class="mono">' + esc(c.codigo) + '</b><button class="ibtn" data-act="copiarCodCoord" data-nome="' + esc(c.nome) + '" title="Copiar mensagem para o coordenador">' + I.copiar + '</button><small>vale até ' + fdata(new Date(new Date(c.codigoEm).getTime() + 7 * 864e5).toISOString()) + '</small></div>' : '');
-    return '<div class="painel coord-box"><h2>Coordenadores</h2><div class="muted">O coordenador vê e altera só as lojas em que o nome dele está na coluna <b>COORDENADOR</b> da planilha. Cadastre o <b>e-mail</b> (será o usuário dele), gere o código e envie: ele cria a senha em "Primeiro acesso".</div>' +
-      (cs.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Coordenador</th><th>Lojas</th><th>Usuário (e-mail)</th><th>Acesso</th><th></th></tr></thead><tbody>' +
+      (c.codigo ? '<div class="ac-cod"><b class="mono">' + esc(c.codigo) + '</b><button class="ibtn" data-act="pessoaCopiar" data-tipo="' + tipo + '" data-nome="' + esc(c.nome) + '" title="Copiar mensagem para o ' + T.um + '">' + I.copiar + '</button><small>vale até ' + fdata(new Date(new Date(c.codigoEm).getTime() + 7 * 864e5).toISOString()) + '</small></div>' : '');
+    return '<div class="painel coord-box"><h2>' + T.titulo + '</h2><div class="muted">O ' + T.um + ' vê e altera só as lojas em que o nome dele está na coluna <b>' + T.col + '</b> da planilha. Cadastre o <b>e-mail</b> (será o usuário dele), gere o código e envie: ele cria a senha em "Primeiro acesso".</div>' +
+      (cs.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>' + T.um.charAt(0).toUpperCase() + T.um.slice(1) + '</th><th>Lojas</th><th>Usuário (e-mail)</th><th>Acesso</th><th></th></tr></thead><tbody>' +
         cs.map(c => '<tr><td><strong>' + esc(c.nome) + '</strong></td><td>' + c.lojas + '</td>' +
-          '<td><input type="email" value="' + esc(c.email) + '" placeholder="email@empresa.com" data-chg="coordEmail" data-nome="' + esc(c.nome) + '"></td>' +
+          '<td><input type="email" value="' + esc(c.email) + '" placeholder="email@empresa.com" data-chg="pessoaEmail" data-tipo="' + tipo + '" data-nome="' + esc(c.nome) + '"></td>' +
           '<td style="min-width:200px">' + ac(c) + '</td>' +
-          '<td><button class="btn sm" data-act="coordCodigo" data-nome="' + esc(c.nome) + '">' + (c.codigo || c.temSenha ? 'Novo código' : 'Gerar código') + '</button></td></tr>').join('') +
-        '</tbody></table></div>' : '<div class="vazio" style="margin-top:12px">Nenhum coordenador na planilha ainda (coluna COORDENADOR).</div>') + '</div>';
+          '<td><button class="btn sm" data-act="pessoaCodigo" data-tipo="' + tipo + '" data-nome="' + esc(c.nome) + '">' + (c.codigo || c.temSenha ? 'Novo código' : 'Gerar código') + '</button></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="vazio" style="margin-top:12px">Nenhum ' + T.um + ' na planilha ainda (coluna ' + T.col + ').</div>') + '</div>';
   }
 
 

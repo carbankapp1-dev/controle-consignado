@@ -2,7 +2,8 @@
    Tudo fica só na memória do navegador e some ao recarregar. Não usa o banco. */
 window.DEMO = (function () {
   const modo = new URLSearchParams(location.search).get('demo');
-  const perfil = modo === 'loja' ? 'loja' : modo === 'coord' ? 'coord' : 'admin';
+  const perfil = modo === 'loja' ? 'loja' : modo === 'coord' ? 'coord' : modo === 'gcm' ? 'gcm' : 'admin';
+  const GCM = 'GCM EXEMPLO UM';
   const COORD = 'COORDENADOR EXEMPLO';
   const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const addDias = (iso, n) => { const p = iso.split('-'); const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n)); return d.toISOString().slice(0, 10); };
@@ -11,6 +12,7 @@ window.DEMO = (function () {
     { cnpj: '11222333000181', nome: 'AUTO CENTER DEMO', nDn: '60001', gcm: 'GCM EXEMPLO UM', coordenador: COORD, senha: true, codigo: '', codigoEm: '' },
     { cnpj: '44555666000172', nome: 'VEICULOS EXEMPLO', nDn: '60002', gcm: 'GCM EXEMPLO DOIS', coordenador: 'OUTRO COORDENADOR', senha: false, codigo: '', codigoEm: '' }
   ];
+  const gcms = [{ nome: 'GCM EXEMPLO UM', email: 'gcm@exemplo.com', temSenha: true, codigo: '', codigoEm: '' }, { nome: 'GCM EXEMPLO DOIS', email: '', temSenha: false, codigo: '', codigoEm: '' }];
   const coords = [{ nome: COORD, email: 'coord@exemplo.com', temSenha: true, codigo: '', codigoEm: '' }, { nome: 'OUTRO COORDENADOR', email: '', temSenha: false, codigo: '', codigoEm: '' }];
   let ordem = 0;
   const V = [];
@@ -33,7 +35,7 @@ window.DEMO = (function () {
   const fim = {};
 
   const espera = x => new Promise(r => setTimeout(() => r(JSON.parse(JSON.stringify(x))), 250));
-  const visivel = l => perfil === 'admin' || (perfil === 'coord' ? l.coordenador === COORD : l.cnpj === '11222333000181');
+  const visivel = l => perfil === 'admin' || (perfil === 'coord' ? l.coordenador === COORD : perfil === 'gcm' ? l.gcm === GCM : l.cnpj === '11222333000181');
   const pega = (f, id) => { const v = V.find(x => x.f === f && x.id === id); if (!v) throw new Error('Veículo não encontrado.'); return v; };
   const L = l => ({ cnpj: l.cnpj, nome: l.nome, fileId: l.cnpj, total: V.filter(v => v.cnpj === l.cnpj).length, liberado: l.senha, codigo: l.codigo, codigoEm: l.codigoEm,
     nDn: l.nDn, gcm: l.gcm, coordenador: l.coordenador });
@@ -42,8 +44,8 @@ window.DEMO = (function () {
   const fns = {
     api_listar(opts) {
       opts = opts || {};
-      const out = { email: { admin: 'admin@demo', coord: 'coord@exemplo.com', loja: '11222333000181@lojas.consignado.app' }[perfil], role: perfil,
-        nome: perfil === 'coord' ? COORD : '', hoje: hojeISO(), prazoDias: 88, produto: 'Consignado', destinatarios: {}, veiculos: [], bases: [], lojas: [] };
+      const out = { email: { admin: 'admin@demo', coord: 'coord@exemplo.com', gcm: 'gcm@exemplo.com', loja: '11222333000181@lojas.consignado.app' }[perfil], role: perfil,
+        nome: perfil === 'coord' ? COORD : perfil === 'gcm' ? GCM : '', hoje: hojeISO(), prazoDias: 88, produto: 'Consignado', destinatarios: {}, veiculos: [], bases: [], lojas: [] };
       const vis = lojas.filter(visivel);
       let sel;
       if (perfil === 'loja') sel = vis;
@@ -59,6 +61,7 @@ window.DEMO = (function () {
         let l = lojas.find(x => x.cnpj === cnpj);
         if (!l) { l = { cnpj, nome: r.loja, senha: false, codigo: '', codigoEm: '' }; lojas.push(l); lojasNovas++; }
         Object.assign(l, { nome: r.loja, nDn: r.nDn || l.nDn, gcm: r.gcm || l.gcm, coordenador: r.coordenador || l.coordenador });
+        if (r.gcm && !gcms.find(c => c.nome === r.gcm)) gcms.push({ nome: r.gcm, email: '', temSenha: false, codigo: '', codigoEm: '' });
         if (r.coordenador && !coords.find(c => c.nome === r.coordenador)) coords.push({ nome: r.coordenador, email: '', temSenha: false, codigo: '', codigoEm: '' });
         const id = r.placa + '_' + r.dtOferta;
         if (fim[cnpj + id]) { ignorados++; return; }
@@ -70,6 +73,9 @@ window.DEMO = (function () {
       return { novos, atualizados, lojasNovas, descartados: 0, ignorados, existentes };
     },
     api_gerarCodigo(cnpj) { const l = lojas.find(x => x.cnpj === cnpj); l.codigo = String(Math.floor(Math.random() * 1e6)).padStart(6, '0'); l.codigoEm = new Date().toISOString(); return { cnpj, codigo: l.codigo, codigo_em: l.codigoEm }; },
+    api_gcmListar() { return gcms.map(c => Object.assign({ lojas: lojas.filter(l => l.gcm === c.nome).length }, c)); },
+    api_gcmEmail(nome, email) { const c = gcms.find(x => x.nome === nome); c.email = String(email || '').trim().toLowerCase(); return { nome, email: c.email }; },
+    api_gcmCodigo(nome) { const c = gcms.find(x => x.nome === nome); if (!c.email) throw new Error('Cadastre antes o e-mail (usuário) do GCM.'); c.codigo = String(Math.floor(Math.random() * 1e6)).padStart(6, '0'); c.codigoEm = new Date().toISOString(); return { nome, codigo: c.codigo, codigo_em: c.codigoEm }; },
     api_coordListar() { return coords.map(c => Object.assign({ lojas: lojas.filter(l => l.coordenador === c.nome).length }, c)); },
     api_coordEmail(nome, email) { const c = coords.find(x => x.nome === nome); c.email = String(email || '').trim().toLowerCase(); return { nome, email: c.email }; },
     api_coordCodigo(nome) {
@@ -110,6 +116,6 @@ window.DEMO = (function () {
     call(fn, ...args) { try { if (!fns[fn]) throw new Error('Função não disponível: ' + fn); return espera(fns[fn](...args)); } catch (e) { return Promise.reject(e); } },
     iniciar() { return espera(fns.api_listar({})); },
     trocarSenha() { return espera(true); },
-    sair() { location.href = location.pathname + (perfil === 'admin' ? '?demo=coord' : perfil === 'coord' ? '?demo=loja' : '?demo=1'); }
+    sair() { location.href = location.pathname + ({ admin: '?demo=coord', coord: '?demo=gcm', gcm: '?demo=loja', loja: '?demo=1' })[perfil]; }
   };
 })();

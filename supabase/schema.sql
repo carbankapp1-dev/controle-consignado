@@ -71,6 +71,18 @@ create table if not exists cc_coordenadores (
 create unique index if not exists cc_coord_email_idx on cc_coordenadores (lower(email)) where email <> '';
 alter table cc_coordenadores enable row level security;
 
+-- GCMs: veem e alteram só as lojas em que o nome deles está na coluna GCM
+create table if not exists cc_gcms (
+  nome              text primary key,            -- igual à planilha, em MAIÚSCULAS
+  email             text not null default '',    -- usuário de login
+  acesso_codigo     text not null default '',
+  acesso_codigo_em  timestamptz,
+  acesso_tentativas int not null default 0,
+  senha_criada_em   timestamptz
+);
+create unique index if not exists cc_gcm_email_idx on cc_gcms (lower(email)) where email <> '';
+alter table cc_gcms enable row level security;
+
 -- ---------- quem está usando ----------
 -- a loja entra com o CNPJ; por dentro vira o e-mail 12345678000199@lojas.consignado.app (nunca recebe mensagens)
 create or replace function cc_dominio() returns text language sql immutable as $$ select 'lojas.consignado.app' $$;
@@ -91,10 +103,16 @@ language sql stable security definer set search_path = public as $$
   select coalesce((select nome from cc_coordenadores where cc_meu_email() <> '' and lower(email) = cc_meu_email()), '')
 $$;
 
--- administrador ou coordenador (quem gerencia lojas)
+-- nome do GCM logado ('' se não for GCM)
+create or replace function cc_gcm_nome() returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce((select nome from cc_gcms where cc_meu_email() <> '' and lower(email) = cc_meu_email()), '')
+$$;
+
+-- administrador, coordenador ou GCM (quem gerencia lojas)
 create or replace function cc_eh_gestor() returns boolean
 language sql stable security definer set search_path = public as $$
-  select cc_eh_admin() or cc_coord_nome() <> ''
+  select cc_eh_admin() or cc_coord_nome() <> '' or cc_gcm_nome() <> ''
 $$;
 
 create or replace function cc_pode(p_cnpj text) returns boolean
@@ -102,6 +120,7 @@ language sql stable security definer set search_path = public as $$
   select cc_eh_admin()
       or (cc_meu_email() <> '' and cc_meu_email() = p_cnpj || '@' || cc_dominio())
       or (cc_coord_nome() <> '' and exists (select 1 from lojas where cnpj = p_cnpj and coordenador = cc_coord_nome()))
+      or (cc_gcm_nome() <> '' and exists (select 1 from lojas where cnpj = p_cnpj and gcm = cc_gcm_nome()))
 $$;
 
 -- ---------- segurança: leitura direta só do que é seu; gravação só pelas funções ----------
@@ -135,8 +154,8 @@ end $$;
 create or replace function cc_quem_sou() returns json
 language sql stable security definer set search_path = public as $$
   select json_build_object('email', cc_meu_email(),
-    'role', case when cc_eh_admin() then 'admin' when cc_coord_nome() <> '' then 'coord' else 'loja' end,
-    'nome', cc_coord_nome())
+    'role', case when cc_eh_admin() then 'admin' when cc_coord_nome() <> '' then 'coord' when cc_gcm_nome() <> '' then 'gcm' else 'loja' end,
+    'nome', case when cc_coord_nome() <> '' then cc_coord_nome() else cc_gcm_nome() end)
 $$;
 
 -- lojas visíveis para quem está usando (o código de acesso só aparece para administrador/coordenador)
@@ -208,7 +227,7 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_user text := lower(trim(coalesce(p_cnpj, '')));
   v_cnpj text := regexp_replace(coalesce(p_cnpj, ''), '\D', '', 'g');
-  v_email text; l lojas; c cc_coordenadores; r text;
+  v_email text; l lojas; c cc_coordenadores; g cc_gcms; r text;
 begin
   if length(coalesce(p_senha, '')) < 6 then raise exception 'A senha precisa ter pelo menos 6 caracteres.'; end if;
 
@@ -218,7 +237,21 @@ begin
       raise exception 'Este e-mail é de administrador: a senha dele é trocada no próprio site, em Trocar senha.';
     end if;
     select * into c from cc_coordenadores where lower(email) = v_user for update;
-    r := case when found then cc_confere_codigo(c.acesso_codigo, c.acesso_codigo_em, c.acesso_tentativas, p_codigo) else 'SEM' end;
+    if not found then
+      -- não é coordenador: tenta GCM
+      select * into g from cc_gcms where lower(email) = v_user for update;
+      r := case when found then cc_confere_codigo(g.acesso_codigo, g.acesso_codigo_em, g.acesso_tentativas, p_codigo) else 'SEM' end;
+      if r = 'SEM' then raise exception 'Não há código de acesso para este usuário. Peça um código ao administrador.'; end if;
+      if r = 'ERRADO' then
+        update cc_gcms set acesso_tentativas = acesso_tentativas + 1 where nome = g.nome;
+        return json_build_object('ok', false, 'erro', 'Código incorreto. Confira com o administrador.');
+      end if;
+      if r <> '' then raise exception '%', r; end if;
+      perform cc_grava_usuario(v_user, p_senha, jsonb_build_object('gcm', g.nome));
+      update cc_gcms set acesso_codigo = '', acesso_codigo_em = null, acesso_tentativas = 0, senha_criada_em = now() where nome = g.nome;
+      return json_build_object('ok', true, 'email', v_user);
+    end if;
+    r := cc_confere_codigo(c.acesso_codigo, c.acesso_codigo_em, c.acesso_tentativas, p_codigo);
     if r = 'SEM' then raise exception 'Não há código de acesso para este usuário. Peça um código ao administrador.'; end if;
     if r = 'ERRADO' then
       update cc_coordenadores set acesso_tentativas = acesso_tentativas + 1 where nome = c.nome;
@@ -277,6 +310,9 @@ begin
   if v_email <> '' and exists (select 1 from cc_coordenadores where lower(email) = v_email and nome <> v_nome) then
     raise exception 'Este e-mail já está em outro coordenador.';
   end if;
+  if v_email <> '' and exists (select 1 from cc_gcms where lower(email) = v_email) then
+    raise exception 'Este e-mail já está cadastrado como GCM.';
+  end if;
   insert into cc_coordenadores (nome, email) values (v_nome, v_email)
   on conflict (nome) do update set email = excluded.email;
   return json_build_object('nome', v_nome, 'email', v_email);
@@ -290,6 +326,52 @@ begin
   update cc_coordenadores set acesso_codigo = c, acesso_codigo_em = now(), acesso_tentativas = 0
   where nome = upper(trim(p_nome)) and email <> '' returning * into r;
   if not found then raise exception 'Cadastre antes o e-mail (usuário) do coordenador.'; end if;
+  return json_build_object('nome', r.nome, 'codigo', c, 'codigo_em', r.acesso_codigo_em);
+end $$;
+
+-- ---------- administrador: GCMs ----------
+create or replace function cc_gcms_listar()
+returns table (nome text, email text, lojas bigint, tem_senha boolean, codigo text, codigo_em timestamptz)
+language sql stable security definer set search_path = public as $$
+  with nomes as (
+    select gcm as nome from lojas where gcm <> ''
+    union select nome from cc_gcms)
+  select n.nome, coalesce(g.email, ''), (select count(*) from lojas l where l.gcm = n.nome),
+         g.senha_criada_em is not null, coalesce(g.acesso_codigo, ''), g.acesso_codigo_em
+  from nomes n left join cc_gcms g on g.nome = n.nome
+  where cc_eh_admin()
+  order by n.nome
+$$;
+
+create or replace function cc_gcm_salvar_email(p_nome text, p_email text) returns json
+language plpgsql security definer set search_path = public as $$
+declare v_nome text := upper(trim(coalesce(p_nome, ''))); v_email text := lower(trim(coalesce(p_email, '')));
+begin
+  perform cc_exige_admin();
+  if v_nome = '' then raise exception 'Informe o nome do GCM.'; end if;
+  if v_email <> '' and v_email !~ '^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$' then raise exception 'E-mail inválido.'; end if;
+  if v_email <> '' and exists (select 1 from cc_admins where lower(email) = v_email) then
+    raise exception 'Este e-mail já é de administrador.';
+  end if;
+  if v_email <> '' and exists (select 1 from cc_coordenadores where lower(email) = v_email) then
+    raise exception 'Este e-mail já está cadastrado como coordenador.';
+  end if;
+  if v_email <> '' and exists (select 1 from cc_gcms where lower(email) = v_email and nome <> v_nome) then
+    raise exception 'Este e-mail já está em outro GCM.';
+  end if;
+  insert into cc_gcms (nome, email) values (v_nome, v_email)
+  on conflict (nome) do update set email = excluded.email;
+  return json_build_object('nome', v_nome, 'email', v_email);
+end $$;
+
+create or replace function cc_gcm_gerar_codigo(p_nome text) returns json
+language plpgsql security definer set search_path = public as $$
+declare c text := lpad((floor(random() * 1000000))::int::text, 6, '0'); r cc_gcms;
+begin
+  perform cc_exige_admin();
+  update cc_gcms set acesso_codigo = c, acesso_codigo_em = now(), acesso_tentativas = 0
+  where nome = upper(trim(p_nome)) and email <> '' returning * into r;
+  if not found then raise exception 'Cadastre antes o e-mail (usuário) do GCM.'; end if;
   return json_build_object('nome', r.nome, 'codigo', c, 'codigo_em', r.acesso_codigo_em);
 end $$;
 
@@ -585,6 +667,7 @@ grant execute on function cc_criar_senha(text, text, text) to anon, authenticate
 grant execute on function cc_quem_sou(), cc_lojas(), cc_gerar_codigo(text), cc_importar_lote(jsonb), cc_migrar(jsonb),
   cc_coordenadores_listar(), cc_coord_salvar_email(text, text), cc_coord_gerar_codigo(text),
   cc_coord_nome(), cc_eh_gestor(), cc_salvar_prazo(text, text, text),
+  cc_gcm_nome(), cc_gcms_listar(), cc_gcm_salvar_email(text, text), cc_gcm_gerar_codigo(text),
   cc_salvar_coleta(text, text, text), cc_salvar_valor(text, text, numeric), cc_incluir_veiculo(text, jsonb),
   cc_iniciar_boleto(text, text, text), cc_boleto_chegou(text, text), cc_desfazer_boleto(text, text),
   cc_salvar_enviado_em(text, text, text), cc_salvar_rastreio(text, text, text), cc_finalizar(text, text),

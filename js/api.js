@@ -72,6 +72,9 @@ window.API = (function () {
     api_coordListar: async () => (await rpc('cc_coordenadores_listar')).map(c => ({ nome: c.nome, email: c.email || '', lojas: Number(c.lojas) || 0, temSenha: !!c.tem_senha, codigo: c.codigo || '', codigoEm: c.codigo_em || '' })),
     api_coordEmail: (nome, email) => rpc('cc_coord_salvar_email', { p_nome: nome, p_email: email }),
     api_coordCodigo: nome => rpc('cc_coord_gerar_codigo', { p_nome: nome }),
+    api_gcmListar: async () => (await rpc('cc_gcms_listar')).map(c => ({ nome: c.nome, email: c.email || '', lojas: Number(c.lojas) || 0, temSenha: !!c.tem_senha, codigo: c.codigo || '', codigoEm: c.codigo_em || '' })),
+    api_gcmEmail: (nome, email) => rpc('cc_gcm_salvar_email', { p_nome: nome, p_email: email }),
+    api_gcmCodigo: nome => rpc('cc_gcm_gerar_codigo', { p_nome: nome }),
     api_salvarValor: async (f, id, valor) => pub(await rpc('cc_salvar_valor', { p_cnpj: f, p_id: id, p_valor: valor })),
     api_incluirVeiculo: async (f, dados) => pub(await rpc('cc_incluir_veiculo', { p_cnpj: f, p_dados: dados })),
     api_iniciarBoleto: async (f, id, placa) => pub(await rpc('cc_iniciar_boleto', { p_cnpj: f, p_id: id, p_placa: placa })),
@@ -108,7 +111,7 @@ window.API = (function () {
   }
 
   function telaLogin(aviso, ok, usuario) {
-    tela('<h2>Entrar</h2><p>Lojas: usuário é o <b>CNPJ</b> (só números). Coordenadores: o <b>e-mail</b>.</p>' + avisoHTML(aviso, ok) +
+    tela('<h2>Entrar</h2><p>Lojas: usuário é o <b>CNPJ</b> (só números). Coordenadores e GCMs: o <b>e-mail</b>.</p>' + avisoHTML(aviso, ok) +
       '<form id="fLogin">' + campo('lgUser', 'Usuário', 'text', 'autocomplete="username" value="' + escH(usuario || '') + '"') +
       campo('lgSenha', 'Senha', 'password', 'autocomplete="current-password"') +
       '<button class="btn pri" id="lgBtn" type="submit">Entrar</button></form>' +
@@ -132,7 +135,7 @@ window.API = (function () {
   function telaPrimeiro(aviso, usuario) {
     const u0 = String(usuario || '').includes('@') ? String(usuario).trim() : soNum(usuario);
     tela('<h2>Criar senha</h2><p>Use o <b>código de 6 números</b> que o administrador passou para você.</p>' + avisoHTML(aviso) +
-      '<form id="fPrim">' + campo('pcUser', 'Usuário (CNPJ da loja ou e-mail do coordenador)', 'text', 'autocomplete="username" value="' + escH(u0) + '"') +
+      '<form id="fPrim">' + campo('pcUser', 'Usuário (CNPJ da loja ou e-mail)', 'text', 'autocomplete="username" value="' + escH(u0) + '"') +
       campo('pcCod', 'Código de acesso', 'text', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"') +
       campo('pcS1', 'Nova senha (mínimo 6 caracteres)', 'password', 'autocomplete="new-password"') +
       campo('pcS2', 'Repita a nova senha', 'password', 'autocomplete="new-password"') +
@@ -144,7 +147,7 @@ window.API = (function () {
       const v = id => document.getElementById(id).value;
       const bruto = v('pcUser').trim(), ehEmail = bruto.includes('@');
       const cnpj = ehEmail ? bruto.toLowerCase() : soNum(bruto), cod = soNum(v('pcCod')), s1 = v('pcS1'), s2 = v('pcS2');
-      if (!ehEmail && cnpj.length !== 14) return telaPrimeiro('Digite o CNPJ com 14 números (ou o e-mail, se for coordenador).', cnpj);
+      if (!ehEmail && cnpj.length !== 14) return telaPrimeiro('Digite o CNPJ com 14 números (ou o e-mail, se for coordenador ou GCM).', cnpj);
       if (cod.length !== 6) return telaPrimeiro('O código tem 6 números.', cnpj);
       if (s1.length < 6) return telaPrimeiro('A senha precisa ter pelo menos 6 caracteres.', cnpj);
       if (s1 !== s2) return telaPrimeiro('As duas senhas não são iguais.', cnpj);
