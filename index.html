@@ -336,9 +336,9 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="js/config.js?v=4"></script>
-<script src="js/demo.js?v=4"></script>
-<script src="js/api.js?v=4"></script>
+<script src="js/config.js?v=5"></script>
+<script src="js/demo.js?v=5"></script>
+<script src="js/api.js?v=5"></script>
 </head>
 <body>
 <header class="topo">
@@ -383,7 +383,8 @@ window.addEventListener('error', function (e) {
     limite: 60,
     imp: null,
     prog: null,
-    sel: ''
+    sel: '',
+    gcm: ''
   };
 
   /* ---------- ícones ---------- */
@@ -569,9 +570,19 @@ window.addEventListener('error', function (e) {
     return i.n !== null && i.n <= 15 && v.docStatus !== 'enviado';
   };
   const FILTROS = [['todos', 'Todos', () => true], ['novo', 'Sem boleto', v => etapa(v) === 'novo'], ['solicitado', 'Aguardando boleto', v => etapa(v) === 'solicitado'], ['recebido', 'Pagar boleto', v => etapa(v) === 'recebido'], ['pago', 'Pago · pedir documento', v => etapa(v) === 'pago'], ['docto', 'Documento pedido', v => etapa(v) === 'docto'], ['urgente', 'Prazo ≤ 15 dias', urgente]];
+  // filtro de GCM (administrador e coordenador)
+  const lojasGcm = () => S.d.lojas.filter(l => !S.gcm || l.gcm === S.gcm);
+  const listaGcms = () => [...new Set(S.d.lojas.map(l => l.gcm).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  function selGcmHTML() {
+    const gs = listaGcms();
+    if (!gs.length) return '';
+    return '<select class="sel-loja sel-gcm" data-chg="selGcm" title="Filtrar por GCM"><option value="">Todos os GCMs</option>' +
+      gs.map(g => '<option value="' + esc(g) + '"' + (S.gcm === g ? ' selected' : '') + '>GCM: ' + esc(g) + ' (' + (q => q + (q === 1 ? ' loja' : ' lojas'))(S.d.lojas.filter(l => l.gcm === g).length) + ')</option>').join('') + '</select>';
+  }
   function base() {
     const q = S.busca.trim().toLowerCase();
-    return S.d.veiculos.filter(v => (!S.loja || v.cnpj === S.loja) && (!q || v.placa.toLowerCase().includes(q) || v.modelo.toLowerCase().includes(q) || v.loja.toLowerCase().includes(q)));
+    const okGcm = adm() && S.gcm ? new Set(lojasGcm().map(l => l.cnpj)) : null;
+    return S.d.veiculos.filter(v => (!S.loja || v.cnpj === S.loja) && (!okGcm || okGcm.has(v.cnpj)) && (!q || v.placa.toLowerCase().includes(q) || v.modelo.toLowerCase().includes(q) || v.loja.toLowerCase().includes(q)));
   }
   function ordenar(a, b) {
     const ea = etapa(a) === 'docto',
@@ -608,7 +619,8 @@ window.addEventListener('error', function (e) {
   function viewVeiculos() {
     const d = S.d;
     const btnNovo = (adm() ? d.lojas.length : d.bases.length) ? '<button class="btn pri" data-act="novoVeiculo" title="Incluir um veículo manualmente">+ Novo veículo</button>' : '';
-    const barraAdm = adm() ? "<select class=\"sel-loja\" data-chg=\"selBase\"><option value=\"\">Escolha uma loja…</option><option value=\"*\" ".concat(S.sel === '*' ? 'selected' : '', ">TODAS AS LOJAS (").concat(d.lojas.reduce((t, l) => t + l.total, 0), ")</option>").concat(d.lojas.map(l => "<option value=\"".concat(esc(l.fileId), "\" ").concat(S.sel === l.fileId ? 'selected' : '', ">").concat(esc(l.nome), " (").concat(l.total, ")</option>")).join(''), "</select>") : '';
+    const lg = adm() ? lojasGcm() : [];
+    const barraAdm = adm() ? selGcmHTML() + "<select class=\"sel-loja\" data-chg=\"selBase\"><option value=\"\">Escolha uma loja…</option><option value=\"*\" ".concat(S.sel === '*' ? 'selected' : '', ">").concat(S.gcm ? 'TODAS AS LOJAS DO GCM' : 'TODAS AS LOJAS', " (").concat(lg.reduce((t, l) => t + l.total, 0), ")</option>").concat(lg.map(l => "<option value=\"".concat(esc(l.fileId), "\" ").concat(S.sel === l.fileId ? 'selected' : '', ">").concat(esc(l.nome), " (").concat(l.total, ")</option>")).join(''), "</select>") : '';
     if (adm() && !S.sel) {
       return "<div class=\"barra\">".concat(barraAdm).concat(btnNovo, "</div><div class=\"vazio\">").concat(I.vazio, "<h3>Escolha uma loja</h3><p>").concat(d.lojas.length ? 'Selecione acima para ver os veículos dela.' : 'Importe a planilha de ofertas para criar as lojas.', "</p>").concat(d.lojas.length ? '' : '<button class="btn pri" data-act="aba" data-k="importar">Importar planilha</button>', "</div>");
     }
@@ -637,6 +649,10 @@ window.addEventListener('error', function (e) {
   }
   function infoLoja() {
     const l = lojaEmFoco();
+    if (!l && adm() && S.gcm && S.sel === '*') {
+      const ls = lojasGcm();
+      return '<div class="info-loja"><div class="il-nome">GCM: ' + esc(S.gcm) + '</div><span><b>' + ls.length + '</b> loja' + (ls.length > 1 ? 's' : '') + '</span><span><b>' + ls.reduce((t, x) => t + x.total, 0) + '</b> veículos</span></div>';
+    }
     if (!l) return '';
     const it = (r, v) => v ? '<span>' + r + ' <b>' + esc(v) + '</b></span>' : '';
     return '<div class="info-loja"><div class="il-nome">' + esc(l.nome) + '</div>' + it('CNPJ', fcnpj(l.cnpj)) + it('Nº DN', l.nDn) + it('GCM', l.gcm) + it('Coordenador', l.coordenador) + '</div>';
@@ -915,6 +931,15 @@ window.addEventListener('error', function (e) {
       S.loja = el.value;
       S.limite = 60;
       render();
+    } else if (k === 'selGcm') {
+      S.gcm = el.value;
+      S.filtro = 'todos';
+      S.limite = 60;
+      if (S.view === 'lojas') { render(); return; }
+      const ainda = S.sel && S.sel !== '*' && lojasGcm().some(l => l.cnpj === S.sel);
+      if (!ainda) S.sel = S.gcm ? '*' : '';
+      if (!S.sel) { S.d.veiculos = []; S.d.bases = []; render(); }
+      else busy(null, async () => { await carrega(); render(); });
     } else if (k === 'selBase') {
       S.sel = el.value;
       S.filtro = 'todos';
@@ -1643,14 +1668,15 @@ window.addEventListener('error', function (e) {
 
   /* ---------- lojas e acessos (administrador) ---------- */
   function viewLojas() {
-    const ls = S.d.lojas,
+    const ls = lojasGcm(),
       pend = ls.filter(l => !l.liberado).length;
     const acesso = l => {
       const st = l.liberado ? '<span class="ac-ok">✓ Senha criada</span>' : '<span class="ac-no">Sem senha</span>';
       const cod = l.codigo ? '<div class="ac-cod"><b class="mono">' + esc(l.codigo) + '</b><button class="ibtn" data-act="copiarCodigo" data-cnpj="' + l.cnpj + '" title="Copiar mensagem para a loja">' + I.copiar + '</button><small>vale até ' + fdata(new Date(new Date(l.codigoEm).getTime() + 7 * 864e5).toISOString()) + '</small></div>' : '';
       return st + cod;
     };
-    return '<div class="painel"><h2>Lojas e acessos</h2><div class="muted">O <b>usuário</b> de cada loja é o <b>CNPJ</b> (só números). Clique em <b>Gerar código</b> e passe o código para a loja: no primeiro acesso ela digita o CNPJ, o código e cria a própria senha. Esqueceu a senha? Gere um código novo (vale 7 dias).</div>' +
+    const filtroGcm = selGcmHTML() ? '<div class="barra" style="margin:14px 0 0">' + selGcmHTML() + (S.gcm ? '<span class="muted">' + ls.length + ' loja' + (ls.length > 1 ? 's' : '') + ' deste GCM</span>' : '') + '</div>' : '';
+    return '<div class="painel"><h2>Lojas e acessos</h2><div class="muted">O <b>usuário</b> de cada loja é o <b>CNPJ</b> (só números). Clique em <b>Gerar código</b> e passe o código para a loja: no primeiro acesso ela digita o CNPJ, o código e cria a própria senha. Esqueceu a senha? Gere um código novo (vale 7 dias).</div>' + filtroGcm +
       (pend ? '<div class="info az" style="margin-top:14px">' + pend + ' loja' + (pend > 1 ? 's' : '') + ' ainda sem senha.</div>' : '') +
       (ls.length ? '<div class="scroll-x"><table class="tb"><thead><tr><th>Loja</th><th>Nº DN</th><th>Usuário (CNPJ)</th><th>GCM</th>' + (admTotal() ? '<th>Coordenador</th>' : '') + '<th>Veículos</th><th>Acesso</th><th></th></tr></thead><tbody>' +
         ls.map(l => '<tr><td><strong>' + esc(l.nome) + '</strong></td><td>' + esc(l.nDn || '—') + '</td><td><span class="mono">' + esc(l.cnpj) + '</span></td><td>' + esc(l.gcm || '—') + '</td>' + (admTotal() ? '<td>' + esc(l.coordenador || '—') + '</td>' : '') + '<td>' + l.total + '</td>' +
